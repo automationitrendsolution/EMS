@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Login · iTrendTASKS{% endblock %}
+{% block fullpage %}
+<div class="login-wrap">
+  <div class="card login-card shadow-lg">
+    <div class="card-body p-4">
+      <div class="text-center mb-4">
+        <h3 class="fw-bold text-primary"><i class="bi bi-kanban-fill"></i> iTrendTASKS</h3>
+        <p class="text-muted mb-0">Employee Task Management</p>
+      </div>
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-danger py-2">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+      <form method="post" action="/login/{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-control" required autofocus />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Password</label>
+          <input type="password" name="password" class="form-control" required />
+        </div>
+        <button class="btn btn-primary w-100">Sign In</button>
+      </form>
+      <div class="text-center mt-3 small text-muted">
+        Demo: <code>admin@itrendtasks.local</code> / <code>admin12345</code>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

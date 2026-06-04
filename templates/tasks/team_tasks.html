@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Team Tasks · iTrendTASKS{% endblock %}
+{% block heading %}Team Tasks{% endblock %}
+{% block content %}
+<form class="d-flex flex-wrap gap-2 mb-3" method="get">
+  <input class="form-control" name="search" placeholder="Search..." value="{{ search }}" style="max-width:260px" />
+  <select class="form-select" name="status" onchange="this.form.submit()" style="max-width:200px">
+    <option value="">All statuses</option>
+    {% for s in statuses %}<option value="{{ s }}" {% if status_f == s %}selected{% endif %}>{{ s|capfirst }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-outline-secondary">Filter</button>
+  {% if can_manage %}
+  <button type="button" class="btn btn-outline-primary ms-auto" id="bulkBtn" disabled><i class="bi bi-people"></i> Bulk Assign</button>
+  <select class="form-select" id="bulkStatus" style="max-width:170px"><option value="">Bulk status...</option>{% for s in statuses %}<option value="{{ s }}">{{ s|capfirst }}</option>{% endfor %}</select>
+  {% endif %}
+</form>
+
+<div class="card stat-card"><div class="card-body">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead><tr>
+        {% if can_manage %}<th><input type="checkbox" id="checkAll" /></th>{% endif %}
+        <th>ID</th><th>Title</th><th>Project</th><th>Assignee</th><th>Status</th><th>Priority</th><th></th></tr></thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr>
+          {% if can_manage %}<td><input type="checkbox" class="task-check" value="{{ t.id }}" /></td>{% endif %}
+          <td><small>{{ t.task_id }}</small></td>
+          <td><a href="/tasks/{{ t.id }}/" class="text-decoration-none">{{ t.title }}</a></td>
+          <td><small>{{ t.project.name }}</small></td>
+          <td>{{ t.assigned_to.full_name|default:'—' }}</td>
+          <td><span class="badge bg-light text-dark badge-status">{{ t.status }}</span></td>
+          <td><span class="priority-dot p-{{ t.priority }}"></span> {{ t.priority }}</td>
+          <td class="text-end">
+            {% if is_management or t.reporter and t.reporter.id == current_user.id %}
+            <button class="btn btn-sm btn-link text-danger p-0"
+                    data-delete-url="/api/v1/tasks/{{ t.id }}/"
+                    data-confirm="Delete task '{{ t.title }}'?"><i class="bi bi-trash"></i></button>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="8" class="text-center text-muted">No tasks.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+{% if can_manage %}
+<div class="modal fade" id="bulkModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-body p-4">
+  <h5>Bulk Assign</h5>
+  <select class="form-select mb-3" id="bulkAssignee"><option value="">Select employee...</option>{% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}</select>
+  <button class="btn btn-primary w-100" id="bulkAssignConfirm">Assign Selected</button>
+</div></div></div></div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if can_manage %}
+<script>
+  const checks = () => [...document.querySelectorAll(".task-check:checked")].map(c => c.value);
+  const bulkBtn = document.getElementById("bulkBtn");
+  const checkAll = document.getElementById("checkAll");
+  function refresh() { bulkBtn.disabled = checks().length === 0; }
+  document.querySelectorAll(".task-check").forEach(c => c.addEventListener("change", refresh));
+  checkAll.addEventListener("change", () => {
+    document.querySelectorAll(".task-check").forEach(c => c.checked = checkAll.checked); refresh();
+  });
+  bulkBtn.addEventListener("click", () => new bootstrap.Modal("#bulkModal").show());
+  document.getElementById("bulkAssignConfirm").addEventListener("click", async () => {
+    const assignee = document.getElementById("bulkAssignee").value;
+    if (!assignee) return toast("Pick an employee", "warning");
+    try { const r = await API.post("/tasks/bulk-assign/", { task_ids: checks(), assigned_to_id: assignee });
+      toast(`Assigned ${r.updated} tasks`); location.reload(); }
+    catch (err) { toast(err.message, "danger"); }
+  });
+  document.getElementById("bulkStatus").addEventListener("change", async (e) => {
+    if (!e.target.value || checks().length === 0) return;
+    try { const r = await API.post("/tasks/bulk-status/", { task_ids: checks(), status: e.target.value });
+      toast(`Updated ${r.updated} tasks`); location.reload(); }
+    catch (err) { toast(err.message, "danger"); }
+  });
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+{% block title %}{{ task.task_id }} · {{ task.title }}{% endblock %}
+{% block heading %}{{ task.task_id }}{% endblock %}
+{% block content %}
+<div class="row g-3" data-task-id="{{ task.id }}">
+  <div class="col-lg-8">
+    <div class="card stat-card mb-3"><div class="card-body">
+      <div class="d-flex justify-content-between align-items-start">
+        <h5 id="taskTitle">{{ task.title }}</h5>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-outline-info" id="aiSummaryBtn"><i class="bi bi-robot"></i> AI Summary</button>
+          <button class="btn btn-sm btn-outline-secondary" id="cloneBtn"><i class="bi bi-files"></i> Clone</button>
+          {% if can_delete_task %}
+          <button class="btn btn-sm btn-outline-danger"
+                  data-delete-url="/api/v1/tasks/{{ task.id }}/"
+                  data-redirect="/projects/{{ task.project.id }}/"
+                  data-confirm="Delete task '{{ task.title }}'? This removes its comments, time logs and activity.">
+            <i class="bi bi-trash"></i> Delete
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      <p class="text-muted">{{ task.description|default:'No description.' }}</p>
+      <div id="aiSummary"></div>
+      <div class="d-flex flex-wrap gap-3 small">
+        <span><b>Status:</b>
+          <select class="form-select form-select-sm d-inline w-auto" id="statusSel">
+            {% for s in statuses %}<option value="{{ s }}" {% if s == task.status %}selected{% endif %}>{{ s|capfirst }}</option>{% endfor %}
+          </select>
+        </span>
+        <span><b>Priority:</b>
+          <select class="form-select form-select-sm d-inline w-auto" id="prioritySel">
+            {% for p in priorities %}<option value="{{ p }}" {% if p == task.priority %}selected{% endif %}>{{ p|capfirst }}</option>{% endfor %}
+          </select>
+        </span>
+        <span><b>Assignee:</b>
+          <select class="form-select form-select-sm d-inline w-auto" id="assigneeSel">
+            <option value="">Unassigned</option>
+            {% for e in employees %}<option value="{{ e.id }}" {% if task.assigned_to and task.assigned_to.id == e.id %}selected{% endif %}>{{ e.full_name }}</option>{% endfor %}
+          </select>
+        </span>
+      </div>
+      <div class="small text-muted mt-2">
+        Project: {{ task.project.name }} · Reporter: {{ task.reporter.full_name|default:'—' }}
+        · Due: {{ task.due_date|date:'M d, Y H:i'|default:'—' }}
+      </div>
+    </div></div>
+
+    <!-- Subtasks (Module 4) -->
+    <div class="card stat-card mb-3"><div class="card-body">
+      <h6>Subtasks <span class="text-muted small">({{ task.progress }}% complete)</span></h6>
+      <div class="progress progress-thin mb-3"><div class="progress-bar" id="subProgress" style="width:{{ task.progress }}%"></div></div>
+      <ul class="list-group list-group-flush" id="subtaskList">
+        {% for s in task.subtasks %}
+        <li class="list-group-item d-flex align-items-center gap-2 px-0" data-sid="{{ s.sid }}">
+          <input type="checkbox" class="form-check-input sub-check" {% if s.is_done %}checked{% endif %} />
+          <span class="flex-grow-1 {% if s.is_done %}text-decoration-line-through text-muted{% endif %}">{{ s.title }}</span>
+          <button class="btn btn-sm btn-link text-danger sub-del"><i class="bi bi-trash"></i></button>
+        </li>
+        {% endfor %}
+      </ul>
+      <form id="subForm" class="d-flex gap-2 mt-2">
+        <input class="form-control form-control-sm" name="title" placeholder="Add subtask..." required />
+        <button class="btn btn-sm btn-primary">Add</button>
+      </form>
+    </div></div>
+
+    <!-- Comments (Module 6) -->
+    <div class="card stat-card mb-3"><div class="card-body">
+      <h6>Comments</h6>
+      <div id="commentList">
+        {% for c in comments %}
+        <div class="d-flex gap-2 mb-3" id="comment-{{ c.id }}">
+          <i class="bi bi-person-circle fs-4 text-secondary"></i>
+          <div class="flex-grow-1">
+            <div class="d-flex justify-content-between">
+              <div><b>{{ c.author.full_name }}</b> <small class="text-muted">{{ c.created_at|date:'M d, H:i' }}{% if c.is_edited %} · edited{% endif %}</small></div>
+              {% if is_management or c.author.id == current_user.id %}
+              <button class="btn btn-sm btn-link text-danger p-0"
+                      data-delete-url="/api/v1/tasks/{{ task.id }}/comments/{{ c.id }}/"
+                      data-remove="#comment-{{ c.id }}"
+                      data-confirm="Delete this comment?"><i class="bi bi-trash"></i></button>
+              {% endif %}
+            </div>
+            <div>{{ c.body }}</div>
+          </div>
+        </div>
+        {% empty %}<p class="text-muted small" id="noComments">No comments yet.</p>
+        {% endfor %}
+      </div>
+      <form id="commentForm" class="mt-2">
+        <textarea class="form-control mb-2" name="body" rows="2" placeholder="Write a comment... use @EMP0001 to mention" required></textarea>
+        <button class="btn btn-sm btn-primary">Comment</button>
+      </form>
+    </div></div>
+  </div>
+
+  <div class="col-lg-4">
+    <!-- Time tracking (Module 8) -->
+    <div class="card stat-card mb-3"><div class="card-body">
+      <h6 class="d-flex align-items-center justify-content-between">
+        Time Tracking
+        <span class="timer-state badge rounded-pill bg-secondary" id="timerState">
+          <span class="timer-dot"></span> <span id="timerStateText">Idle</span>
+        </span>
+      </h6>
+      <div class="timer-clock text-center my-3" id="timerDisplay">00:00:00</div>
+      <div class="d-flex gap-2 justify-content-center">
+        <button class="btn btn-sm btn-success" data-timer="start" title="Start"><i class="bi bi-play-fill"></i></button>
+        <button class="btn btn-sm btn-warning" data-timer="pause" title="Pause"><i class="bi bi-pause-fill"></i></button>
+        <button class="btn btn-sm btn-info" data-timer="resume" title="Resume"><i class="bi bi-skip-forward-fill"></i></button>
+        <button class="btn btn-sm btn-danger" data-timer="stop" title="Stop"><i class="bi bi-stop-fill"></i></button>
+      </div>
+      <div class="small text-muted mt-3 text-center">Est: {{ task.estimated_hours }}h · Actual: <span id="actualHours">{{ task.actual_hours }}</span>h · Total tracked: {{ total_hours }}h</div>
+    </div></div>
+
+    <!-- Attachments (Module 7) -->
+    <div class="card stat-card mb-3"><div class="card-body">
+      <h6>Attachments</h6>
+      <ul class="list-unstyled small" id="attachList">
+        {% for a in task.attachments %}
+        <li class="d-flex justify-content-between align-items-center" id="att-{{ a.id }}">
+          <a href="{{ a.url }}" target="_blank"><i class="bi bi-paperclip"></i> {{ a.original_name }}</a>
+          {% if is_management or a.uploaded_by.id == current_user.id %}
+          <button class="btn btn-sm btn-link text-danger p-0"
+                  data-delete-url="/api/v1/tasks/{{ task.id }}/attachments/{{ a.id }}/"
+                  data-remove="#att-{{ a.id }}"
+                  data-confirm="Delete attachment '{{ a.original_name }}'?"><i class="bi bi-trash"></i></button>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      <form id="attachForm">
+        <input type="file" class="form-control form-control-sm mb-2" name="file" required />
+        <button class="btn btn-sm btn-outline-primary w-100">Upload</button>
+      </form>
+      <div class="small text-muted mt-1">PDF, DOCX, XLSX, ZIP, PNG, JPG · max 25MB</div>
+    </div></div>
+
+    <!-- Activity log (Module 9) -->
+    <div class="card stat-card"><div class="card-body">
+      <h6>Activity</h6>
+      <ul class="timeline small">
+        {% for a in activity %}
+        <li><b>{{ a.actor.full_name|default:'System' }}</b> {{ a.message }}<br><span class="text-muted">{{ a.created_at|date:'M d, H:i' }}</span></li>
+        {% empty %}<li class="text-muted">No activity.</li>
+        {% endfor %}
+      </ul>
+    </div></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ active_timer|json_script:"activeTimerData" }}
+<script>
+  const TASK = "{{ task.id }}";
+  async function patchTask(body) {
+    try { await API.patch(`/tasks/${TASK}/`, body); toast("Saved"); }
+    catch (e) { toast(e.message, "danger"); }
+  }
+  document.getElementById("statusSel").addEventListener("change", e => patchTask({ status: e.target.value }));
+  document.getElementById("prioritySel").addEventListener("change", e => patchTask({ priority: e.target.value }));
+  document.getElementById("assigneeSel").addEventListener("change", e => patchTask({ assigned_to_id: e.target.value }));
+
+  document.getElementById("cloneBtn").addEventListener("click", async () => {
+    try { const t = await API.post(`/tasks/${TASK}/clone/`, {}); location.href = `/tasks/${t.id}/`; }
+    catch (e) { toast(e.message, "danger"); }
+  });
+
+  // Subtasks
+  document.getElementById("subForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const title = e.target.title.value;
+    try { await API.post(`/tasks/${TASK}/subtasks/`, { title }); location.reload(); }
+    catch (err) { toast(err.message, "danger"); }
+  });
+  document.querySelectorAll(".sub-check").forEach(c => c.addEventListener("change", async e => {
+    const sid = e.target.closest("li").dataset.sid;
+    try { const t = await API.post(`/tasks/${TASK}/subtasks/${sid}/toggle/`, {});
+      document.getElementById("subProgress").style.width = t.progress + "%"; }
+    catch (err) { toast(err.message, "danger"); }
+  }));
+  document.querySelectorAll(".sub-del").forEach(b => b.addEventListener("click", async e => {
+    const sid = e.target.closest("li").dataset.sid;
+    try { await API.del(`/tasks/${TASK}/subtasks/${sid}/`); location.reload(); }
+    catch (err) { toast(err.message, "danger"); }
+  }));
+
+  // Comments
+  document.getElementById("commentForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    try { await API.post(`/tasks/${TASK}/comments/`, { body: e.target.body.value }); location.reload(); }
+    catch (err) { toast(err.message, "danger"); }
+  });
+
+  // ---- Live timer with running animation ----
+  const activeTimer = JSON.parse(document.getElementById("activeTimerData").textContent);
+  const display = document.getElementById("timerDisplay");
+  const stateBadge = document.getElementById("timerState");
+  const stateText = document.getElementById("timerStateText");
+  let elapsed = activeTimer ? activeTimer.elapsed : 0;   // seconds
+  let running = activeTimer ? activeTimer.is_running : false;
+  let ticker = null;
+
+  function fmt(s) {
+    s = Math.max(0, Math.floor(s));
+    const h = String(Math.floor(s / 3600)).padStart(2, "0");
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const sec = String(s % 60).padStart(2, "0");
+    return `${h}:${m}:${sec}`;
+  }
+  function paint() {
+    display.textContent = fmt(elapsed);
+    display.classList.toggle("running", running);
+    if (running) {
+      stateBadge.className = "timer-state badge rounded-pill bg-success running";
+      stateText.textContent = "Running";
+    } else if (elapsed > 0) {
+      stateBadge.className = "timer-state badge rounded-pill bg-warning text-dark";
+      stateText.textContent = "Paused";
+    } else {
+      stateBadge.className = "timer-state badge rounded-pill bg-secondary";
+      stateText.textContent = "Idle";
+    }
+  }
+  function startTicking() {
+    if (ticker) return;
+    ticker = setInterval(() => { elapsed += 1; display.textContent = fmt(elapsed); }, 1000);
+  }
+  function stopTicking() { clearInterval(ticker); ticker = null; }
+
+  paint();
+  if (running) startTicking();
+
+  document.querySelectorAll("[data-timer]").forEach(b => b.addEventListener("click", async () => {
+    const action = b.dataset.timer;
+    try {
+      const r = await API.post(`/tasks/${TASK}/timer/${action}/`, {});
+      elapsed = r.total_seconds;
+      running = r.is_running;
+      if (running) startTicking(); else stopTicking();
+      if (action === "stop") {
+        document.getElementById("actualHours").textContent = (r.total_seconds / 3600).toFixed(2);
+      }
+      paint();
+      toast("Timer " + action);
+    } catch (err) { toast(err.message, "danger"); }
+  }));
+
+  // Attachments
+  document.getElementById("attachForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try { await API.postForm(`/tasks/${TASK}/attachments/`, fd); location.reload(); }
+    catch (err) { toast(err.message, "danger"); }
+  });
+
+  // AI summary
+  document.getElementById("aiSummaryBtn").addEventListener("click", async () => {
+    try { const r = await API.post(`/ai/tasks/${TASK}/summary/`, {});
+      document.getElementById("aiSummary").innerHTML =
+        `<div class="alert alert-info"><i class="bi bi-robot"></i> ${r.summary} <span class="badge bg-dark">${r.source}</span></div>`; }
+    catch (err) { toast(err.message, "danger"); }
+  });
+</script>
+{% endblock %}

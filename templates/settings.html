@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Settings · iTrendTASKS{% endblock %}
+{% block heading %}Settings{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card stat-card"><div class="card-body">
+      <h6>Appearance</h6>
+      <p class="text-muted small">Toggle light / dark mode using the moon icon in the top bar. Your choice is remembered on this device.</p>
+      <button class="btn btn-outline-secondary" onclick="document.getElementById('themeToggle').click()"><i class="bi bi-moon-stars"></i> Toggle Theme</button>
+    </div></div>
+  </div>
+  <div class="col-md-6">
+    <div class="card stat-card"><div class="card-body">
+      <h6>Account</h6>
+      <ul class="list-unstyled small mb-3">
+        <li><b>Name:</b> {{ current_user.full_name }}</li>
+        <li><b>Email:</b> {{ current_user.email }}</li>
+        <li><b>Role:</b> {{ current_user.role_label }}</li>
+        <li><b>Employee ID:</b> {{ current_user.employee_id }}</li>
+      </ul>
+      <a href="/profile/" class="btn btn-outline-primary btn-sm">Edit Profile</a>
+    </div></div>
+  </div>
+  <div class="col-12">
+    <div class="card stat-card"><div class="card-body">
+      <h6>Developer</h6>
+      <p class="text-muted small mb-2">Explore and test the REST API.</p>
+      <a href="/api/docs/" class="btn btn-sm btn-outline-info" target="_blank"><i class="bi bi-braces"></i> Swagger UI</a>
+      <a href="/api/redoc/" class="btn btn-sm btn-outline-info" target="_blank"><i class="bi bi-book"></i> ReDoc</a>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

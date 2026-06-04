@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Projects · iTrendTASKS{% endblock %}
+{% block heading %}Projects{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <form class="d-flex gap-2" method="get">
+    <input class="form-control" name="search" placeholder="Search projects..." value="{{ search }}" />
+    <select class="form-select" name="status" onchange="this.form.submit()">
+      <option value="">All statuses</option>
+      {% for s in statuses %}<option value="{{ s }}" {% if request.GET.status == s %}selected{% endif %}>{{ s|capfirst }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-outline-secondary">Filter</button>
+  </form>
+  {% if can_manage %}
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#projModal"><i class="bi bi-plus-lg"></i> New Project</button>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  {% for p in projects %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card stat-card h-100"><div class="card-body">
+      <div class="d-flex justify-content-between">
+        <h6 class="mb-1"><a href="/projects/{{ p.obj.id }}/" class="text-decoration-none">{{ p.obj.name }}</a></h6>
+        <span class="badge bg-secondary badge-status">{{ p.obj.status }}</span>
+      </div>
+      <p class="text-muted small mb-2">{{ p.obj.description|default:''|truncatechars:90 }}</p>
+      <div class="d-flex justify-content-between small text-muted mb-1">
+        <span>{{ p.stats.completed_tasks }}/{{ p.stats.total_tasks }} tasks</span>
+        <span>{{ p.stats.progress }}%</span>
+      </div>
+      <div class="progress progress-thin mb-3"><div class="progress-bar" style="width:{{ p.stats.progress }}%"></div></div>
+      <div class="d-flex justify-content-between align-items-center">
+        <small class="text-muted"><i class="bi bi-person"></i> {{ p.obj.manager.full_name|default:'No manager' }}</small>
+        <div class="d-flex gap-1">
+          <a href="/projects/{{ p.obj.id }}/board/" class="btn btn-sm btn-outline-primary"><i class="bi bi-kanban"></i> Board</a>
+          {% if can_manage %}
+          <button class="btn btn-sm btn-outline-danger"
+                  data-delete-url="/api/v1/projects/{{ p.obj.id }}/"
+                  data-redirect="/projects/"
+                  data-confirm="Delete project '{{ p.obj.name }}' and all its tasks?">
+            <i class="bi bi-trash"></i>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div></div>
+  </div>
+  {% empty %}
+  <div class="col-12"><div class="alert alert-info">No projects yet.</div></div>
+  {% endfor %}
+</div>
+
+{% if can_manage %}
+<div class="modal fade" id="projModal" tabindex="-1"><div class="modal-dialog">
+  <div class="modal-content"><div class="modal-body p-4">
+    <h5 class="mb-3">New Project</h5>
+    <form id="projForm">
+      <input class="form-control mb-2" name="name" placeholder="Project name" required />
+      <textarea class="form-control mb-2" name="description" placeholder="Description"></textarea>
+      <div class="row g-2 mb-2">
+        <div class="col"><input type="date" class="form-control" name="start_date" /></div>
+        <div class="col"><input type="date" class="form-control" name="end_date" /></div>
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col"><select class="form-select" name="status">{% for s in statuses %}<option value="{{ s }}">{{ s|capfirst }}</option>{% endfor %}</select></div>
+        <div class="col"><select class="form-select" name="priority">{% for p in priorities %}<option value="{{ p }}">{{ p|capfirst }}</option>{% endfor %}</select></div>
+      </div>
+      <select class="form-select mb-2" name="manager_id">
+        <option value="">Select manager...</option>
+        {% for m in managers %}<option value="{{ m.id }}">{{ m.full_name }}</option>{% endfor %}
+      </select>
+      <label class="form-label small">Team members (Ctrl/Cmd-click)</label>
+      <select class="form-select mb-3" name="team_member_ids" multiple size="4">
+        {% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-primary w-100">Create Project</button>
+    </form>
+  </div></div>
+</div></div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const f = document.getElementById("projForm");
+  if (f) f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(f);
+    const body = Object.fromEntries(fd.entries());
+    body.team_member_ids = [...f.team_member_ids.selectedOptions].map(o => o.value);
+    if (!body.start_date) delete body.start_date;
+    if (!body.end_date) delete body.end_date;
+    try { await API.post("/projects/", body); location.reload(); }
+    catch (err) { toast(err.message, "danger"); }
+  });
+</script>
+{% endblock %}

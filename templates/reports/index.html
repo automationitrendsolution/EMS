@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Reports · iTrendTASKS{% endblock %}
+{% block heading %}Reports{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <select class="form-select" id="reportType" style="max-width:240px">
+    <option value="task">Task Report</option>
+    <option value="project">Project Report</option>
+    <option value="employee">Employee Report</option>
+    <option value="productivity">Productivity Report</option>
+  </select>
+  <button class="btn btn-primary" id="runReport"><i class="bi bi-play"></i> Generate</button>
+  <div class="ms-auto btn-group">
+    <a class="btn btn-outline-success export" data-fmt="excel"><i class="bi bi-file-excel"></i> Excel</a>
+    <a class="btn btn-outline-danger export" data-fmt="pdf"><i class="bi bi-file-pdf"></i> PDF</a>
+    <a class="btn btn-outline-secondary export" data-fmt="csv"><i class="bi bi-filetype-csv"></i> CSV</a>
+  </div>
+</div>
+
+<div class="card stat-card"><div class="card-body">
+  <h6 id="reportTitle" class="mb-3">Task Report</h6>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover" id="reportTable">
+      <thead></thead><tbody><tr><td class="text-muted">Click Generate to load the report.</td></tr></tbody>
+    </table>
+  </div>
+</div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function run() {
+    const type = document.getElementById("reportType").value;
+    try {
+      const r = await API.get(`/reports/${type}/`);
+      document.getElementById("reportTitle").textContent = r.title;
+      document.querySelector("#reportTable thead").innerHTML =
+        "<tr>" + r.columns.map(c => `<th>${c}</th>`).join("") + "</tr>";
+      document.querySelector("#reportTable tbody").innerHTML =
+        r.rows.length
+          ? r.rows.map(row => "<tr>" + row.map(c => `<td>${c}</td>`).join("") + "</tr>").join("")
+          : `<tr><td colspan="${r.columns.length}" class="text-muted">No data.</td></tr>`;
+    } catch (e) { toast(e.message, "danger"); }
+  }
+  document.getElementById("runReport").addEventListener("click", run);
+  document.querySelectorAll(".export").forEach(b => b.addEventListener("click", () => {
+    const type = document.getElementById("reportType").value;
+    // Token in query so the browser download carries auth.
+    window.open(`/api/v1/reports/${type}/export/${b.dataset.fmt}/`, "_blank");
+  }));
+  run();
+</script>
+{% endblock %}

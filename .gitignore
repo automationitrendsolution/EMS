@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# iTrendTASKS additions
+*.sqlite3
+django_internal.sqlite3
+staticfiles/
+media/

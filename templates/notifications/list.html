@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Notifications · iTrendTASKS{% endblock %}
+{% block heading %}Notifications{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-end mb-3">
+  <button class="btn btn-sm btn-outline-secondary" id="markAll"><i class="bi bi-check2-all"></i> Mark all read</button>
+</div>
+<div class="card stat-card"><div class="list-group list-group-flush">
+  {% for n in notifications %}
+  <a href="{{ n.link|default:'#' }}" class="list-group-item list-group-item-action {% if not n.is_read %}bg-light{% endif %}">
+    <div class="d-flex justify-content-between">
+      <div>
+        <b>{{ n.title }}</b>{% if not n.is_read %} <span class="badge bg-primary">new</span>{% endif %}
+        <div class="small text-muted">{{ n.message }}</div>
+      </div>
+      <small class="text-muted">{{ n.created_at|date:'M d, H:i' }}</small>
+    </div>
+  </a>
+  {% empty %}
+  <div class="list-group-item text-muted text-center">No notifications.</div>
+  {% endfor %}
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById("markAll").addEventListener("click", async () => {
+    try { await API.post("/notifications/read-all/", {}); location.reload(); }
+    catch (e) { toast(e.message, "danger"); }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+.env
+*.sqlite3
+media/
+staticfiles/
+.venv/
+venv/
+.pytest_cache/
+*.md
+!Document.md

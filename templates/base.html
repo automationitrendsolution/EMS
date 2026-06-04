@@ -1,0 +1,83 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="{{ request.COOKIES.theme|default:'light' }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}iTrendTASKS{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="{% static 'css/app.css' %}" rel="stylesheet" />
+  <script>
+    window.API_TOKEN = "{{ api_token|default:'' }}";
+    window.CURRENT_USER_ID = "{% if current_user %}{{ current_user.id }}{% endif %}";
+  </script>
+</head>
+<body>
+{% if current_user %}
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <i class="bi bi-kanban-fill"></i> <span>iTrendTASKS</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="/dashboard/" class="{% if active == 'dashboard' %}active{% endif %}"><i class="bi bi-speedometer2"></i> Dashboard</a>
+      <a href="/projects/" class="{% if active == 'projects' %}active{% endif %}"><i class="bi bi-folder2-open"></i> Projects</a>
+      <a href="/tasks/mine/" class="{% if active == 'my_tasks' %}active{% endif %}"><i class="bi bi-check2-square"></i> My Tasks</a>
+      <a href="/tasks/team/" class="{% if active == 'team_tasks' %}active{% endif %}"><i class="bi bi-people"></i> Team Tasks</a>
+      {% if current_user.role == 'super_admin' or current_user.role == 'admin' or current_user.role == 'project_manager' %}
+      <a href="/employees/" class="{% if active == 'employees' %}active{% endif %}"><i class="bi bi-person-badge"></i> Employees</a>
+      <a href="/reports/" class="{% if active == 'reports' %}active{% endif %}"><i class="bi bi-bar-chart"></i> Reports</a>
+      {% endif %}
+      <a href="/notifications/" class="{% if active == 'notifications' %}active{% endif %}"><i class="bi bi-bell"></i> Notifications</a>
+      <a href="/settings/" class="{% if active == 'settings' %}active{% endif %}"><i class="bi bi-gear"></i> Settings</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="btn btn-sm btn-light" id="sidebarToggle"><i class="bi bi-list"></i></button>
+      <div class="topbar-title">{% block heading %}{% endblock %}</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-light" id="themeToggle" title="Toggle theme"><i class="bi bi-moon-stars"></i></button>
+        <a href="/notifications/" class="btn btn-sm btn-light position-relative">
+          <i class="bi bi-bell"></i>
+          <span class="badge bg-danger rounded-pill notif-badge" {% if not unread_notifications %}style="display:none"{% endif %}>{{ unread_notifications }}</span>
+        </a>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="bi bi-person-circle"></i> {{ current_user.full_name }}
+            <small class="text-muted">({{ current_user.role_label }})</small>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="/profile/"><i class="bi bi-person"></i> Profile</a></li>
+            <li><a class="dropdown-item" href="/logout/"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% else %}
+  {% block fullpage %}{% endblock %}
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/app.js' %}"></script>
+{% if current_user %}<script src="{% static 'js/notifications.js' %}"></script>{% endif %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

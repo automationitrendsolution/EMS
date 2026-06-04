@@ -1,0 +1,87 @@
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-itrend}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-itrendpass}
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  django:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MONGO_HOST: mongodb
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      RUN_SEED: ${RUN_SEED:-1}
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  celery:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MONGO_HOST: mongodb
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      COLLECT_STATIC: 0
+    command: celery -A config worker -l info
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      - django
+      - redis
+
+  celery-beat:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MONGO_HOST: mongodb
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      COLLECT_STATIC: 0
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    depends_on:
+      - django
+      - redis
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - media_data:/app/media:ro
+      - static_data:/app/staticfiles:ro
+    depends_on:
+      - django
+
+volumes:
+  mongodb_data:
+  redis_data:
+  media_data:
+  static_data:

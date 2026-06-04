@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard · iTrendTASKS{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block content %}
+{% with c=data.cards %}
+<div class="row g-3 mb-4">
+  {% include 'dashboard/_stat.html' with icon='folder2-open' color='#4f46e5' value=c.total_projects label='Total Projects' %}
+  {% include 'dashboard/_stat.html' with icon='play-circle' color='#0ea5e9' value=c.active_projects label='Active Projects' %}
+  {% include 'dashboard/_stat.html' with icon='list-task' color='#6366f1' value=c.total_tasks label='Total Tasks' %}
+  {% include 'dashboard/_stat.html' with icon='hourglass-split' color='#f59e0b' value=c.pending_tasks label='Pending Tasks' %}
+  {% include 'dashboard/_stat.html' with icon='check2-circle' color='#10b981' value=c.completed_tasks label='Completed' %}
+  {% include 'dashboard/_stat.html' with icon='exclamation-triangle' color='#ef4444' value=c.overdue_tasks label='Overdue' %}
+</div>
+{% endwith %}
+
+<!-- Total spent hours grouped by status -->
+<div class="card stat-card mb-3"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h6 class="mb-0">Spent Hours by Status</h6>
+    <span class="badge bg-primary fs-6">Total: {{ data.total_spent_hours }} h</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Status</th><th class="text-end">Tasks</th><th class="text-end">Spent Hours</th></tr></thead>
+      <tbody>
+        {% for s in data.status_hours %}
+        <tr>
+          <td><span class="badge bg-light text-dark badge-status">{{ s.label }}</span></td>
+          <td class="text-end">{{ s.count }}</td>
+          <td class="text-end fw-semibold">{{ s.hours }} h</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="table-group-divider">
+        <tr class="fw-bold"><td>Total</td><td class="text-end">{{ data.cards.total_tasks }}</td><td class="text-end">{{ data.total_spent_hours }} h</td></tr>
+      </tfoot>
+    </table>
+  </div>
+</div></div>
+
+<!-- Task details table -->
+<div class="card stat-card mb-3"><div class="card-body">
+  <h6 class="mb-3">Task Details</h6>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead><tr>
+        <th>ID</th><th>Title</th><th>Project</th><th>Assignee</th>
+        <th>Status</th><th>Priority</th><th>Progress</th>
+        <th class="text-end">Est. (h)</th><th class="text-end">Spent (h)</th><th>Due</th>
+      </tr></thead>
+      <tbody>
+        {% for t in data.tasks %}
+        <tr class="cursor-pointer" onclick="location.href='/tasks/{{ t.id }}/'">
+          <td><small>{{ t.task_id }}</small></td>
+          <td>{{ t.title }}{% if t.is_overdue %} <span class="badge bg-danger">Overdue</span>{% endif %}</td>
+          <td><small>{{ t.project }}</small></td>
+          <td>{{ t.assignee }}</td>
+          <td><span class="badge bg-light text-dark badge-status">{{ t.status_label }}</span></td>
+          <td><span class="priority-dot p-{{ t.priority }}"></span> {{ t.priority }}</td>
+          <td style="width:110px"><div class="progress progress-thin"><div class="progress-bar" style="width:{{ t.progress }}%"></div></div></td>
+          <td class="text-end">{{ t.estimated_hours }}</td>
+          <td class="text-end fw-semibold">{{ t.spent_hours }}</td>
+          <td><small>{{ t.due_date|date:'M d, Y'|default:'—' }}</small></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10" class="text-center text-muted">No tasks.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+{% if data.employee_workload %}
+<div class="card stat-card"><div class="card-body">
+  <h6 class="mb-3">Employee Workload</h6>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th>Employee</th><th>Open Tasks</th><th>Completed</th></tr></thead>
+      <tbody>
+        {% for w in data.employee_workload %}
+        <tr><td>{{ w.employee }}</td><td><span class="badge bg-warning text-dark">{{ w.open_tasks }}</span></td>
+          <td><span class="badge bg-success">{{ w.completed_tasks }}</span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+{% endif %}
+{% endblock %}

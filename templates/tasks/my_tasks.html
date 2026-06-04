@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}My Tasks · iTrendTASKS{% endblock %}
+{% block heading %}My Tasks{% endblock %}
+{% block content %}
+<div class="card stat-card"><div class="card-body">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead><tr><th>ID</th><th>Title</th><th>Project</th><th>Status</th><th>Priority</th><th>Progress</th><th>Due</th><th></th></tr></thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr class="cursor-pointer" onclick="location.href='/tasks/{{ t.id }}/'">
+          <td><small>{{ t.task_id }}</small></td>
+          <td>{{ t.title }} {% if t.is_overdue %}<span class="badge bg-danger">Overdue</span>{% endif %}</td>
+          <td><small>{{ t.project.name }}</small></td>
+          <td><span class="badge bg-light text-dark badge-status">{{ t.status }}</span></td>
+          <td><span class="priority-dot p-{{ t.priority }}"></span> {{ t.priority }}</td>
+          <td style="width:120px"><div class="progress progress-thin"><div class="progress-bar" style="width:{{ t.progress }}%"></div></div></td>
+          <td><small>{{ t.due_date|date:'M d, Y'|default:'—' }}</small></td>
+          <td class="text-end">
+            {% if is_management or t.reporter and t.reporter.id == current_user.id %}
+            <button class="btn btn-sm btn-link text-danger p-0"
+                    data-delete-url="/api/v1/tasks/{{ t.id }}/"
+                    data-confirm="Delete task '{{ t.title }}'?"><i class="bi bi-trash"></i></button>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="8" class="text-center text-muted">You have no tasks assigned.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+{% endblock %}
