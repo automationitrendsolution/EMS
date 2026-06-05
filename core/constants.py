@@ -54,6 +54,26 @@ STATUS_LABELS = {
     "rejected": "Rejected",
 }
 
+# ---- Performance: KRA (Key Result Area) / KPI (Key Performance Indicator) ----
+PERF_KIND_KRA = "kra"
+PERF_KIND_KPI = "kpi"
+PERF_KINDS = [PERF_KIND_KRA, PERF_KIND_KPI]
+PERF_KIND_LABELS = {
+    PERF_KIND_KRA: "KRA",
+    PERF_KIND_KPI: "KPI",
+}
+PERF_KIND_FULL_LABELS = {
+    PERF_KIND_KRA: "Key Result Area",
+    PERF_KIND_KPI: "Key Performance Indicator",
+}
+PERF_STATUSES = ["not_started", "in_progress", "achieved", "not_achieved"]
+PERF_STATUS_LABELS = {
+    "not_started": "Not Started",
+    "in_progress": "In Progress",
+    "achieved": "Achieved",
+    "not_achieved": "Not Achieved",
+}
+
 # ---- Activity log verbs ----
 ACTIVITY_TASK_CREATED = "task_created"
 ACTIVITY_TASK_ASSIGNED = "task_assigned"

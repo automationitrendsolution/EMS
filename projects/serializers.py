@@ -11,6 +11,8 @@ def project_repr(p, stats=None):
         "description": p.description,
         "status": p.status,
         "priority": p.priority,
+        "estimated_hours": p.estimated_hours,
+        "actual_hours": p.actual_hours,
         "start_date": p.start_date.isoformat() if p.start_date else None,
         "end_date": p.end_date.isoformat() if p.end_date else None,
         "manager": doc_brief(p.manager),
@@ -30,6 +32,7 @@ class ProjectWriteSerializer(serializers.Serializer):
     end_date = serializers.DateTimeField(required=False, allow_null=True)
     status = serializers.ChoiceField(choices=PROJECT_STATUSES, default="planning")
     priority = serializers.ChoiceField(choices=PRIORITIES, default="medium")
+    estimated_hours = serializers.FloatField(required=False, min_value=0)
     manager_id = serializers.CharField(required=False, allow_blank=True)
     team_member_ids = serializers.ListField(
         child=serializers.CharField(), required=False, default=list

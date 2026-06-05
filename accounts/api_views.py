@@ -11,7 +11,13 @@ from accounts.auth import (
     make_access_token,
     make_token_pair,
 )
-from accounts.models import Department, Designation, Team, User
+from accounts.models import (
+    Department,
+    Designation,
+    PerformanceGoal,
+    Team,
+    User,
+)
 from accounts.serializers import (
     DepartmentSerializer,
     DesignationSerializer,
@@ -19,14 +25,17 @@ from accounts.serializers import (
     EmployeeUpdateSerializer,
     LoginSerializer,
     PasswordChangeSerializer,
+    PerformanceGoalCreateSerializer,
+    PerformanceGoalUpdateSerializer,
     RefreshSerializer,
     TeamSerializer,
     department_repr,
     designation_repr,
+    performance_goal_repr,
     team_repr,
     user_repr,
 )
-from accounts.services import create_user
+from accounts.services import create_user, delete_user
 from core.constants import MANAGEMENT_ROLES
 from core.api_helpers import paginate
 
@@ -198,9 +207,18 @@ class EmployeeDetailView(APIView):
         user = self.get_object(pk)
         if not user:
             return Response({"detail": "Not found."}, status=404)
-        # Soft-deactivate rather than hard delete to preserve references.
-        user.status = "inactive"
-        user.save()
+        if str(user.id) == str(request.user.id):
+            return Response(
+                {"detail": "You cannot delete your own account."}, status=400
+            )
+        # ?hard=1 permanently removes the user (and scrubs references);
+        # otherwise we soft-deactivate to preserve history.
+        hard = str(request.query_params.get("hard", "")).lower() in ("1", "true", "yes")
+        if hard:
+            delete_user(user)
+        else:
+            user.status = "inactive"
+            user.save()
         return Response(status=204)
 
 
@@ -254,3 +272,102 @@ class TeamListCreateView(APIView):
             ],
         ).save()
         return Response(team_repr(team), status=201)
+
+
+# ---------------------------------------------------------------------------
+# Performance goals — KRA (Key Result Area) / KPI (Key Performance Indicator)
+# ---------------------------------------------------------------------------
+# Fields an employee (the goal owner, but not management) is allowed to update
+# themselves — they can report progress but not redefine or re-score the goal.
+_PERF_OWNER_FIELDS = {"status"}
+
+
+class PerformanceGoalListCreateView(APIView):
+    def get(self, request):
+        qs = PerformanceGoal.objects()
+        if request.user.role not in MANAGEMENT_ROLES:
+            # Non-management users only ever see their own goals.
+            qs = qs.filter(employee=str(request.user.id))
+        else:
+            emp = request.query_params.get("employee_id")
+            if emp:
+                qs = qs.filter(employee=emp)
+        kind = request.query_params.get("kind")
+        if kind:
+            qs = qs.filter(kind=kind)
+        status_f = request.query_params.get("status")
+        if status_f:
+            qs = qs.filter(status=status_f)
+        qs = qs.order_by("kind", "-created_at")
+        return paginate(request, qs, performance_goal_repr)
+
+    def post(self, request):
+        if request.user.role not in MANAGEMENT_ROLES:
+            return Response({"detail": "Forbidden."}, status=403)
+        s = PerformanceGoalCreateSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        d = s.validated_data
+        employee = _resolve_ref(User, d["employee_id"])
+        if not employee:
+            return Response({"detail": "Employee not found."}, status=400)
+        goal = PerformanceGoal(
+            employee=employee,
+            kind=d["kind"],
+            title=d["title"],
+            description=d.get("description"),
+            target=d.get("target"),
+            weightage=d.get("weightage", 0),
+            period=d.get("period"),
+            status=d["status"],
+            score=d.get("score", 0),
+            created_by=request.user,
+        ).save()
+        return Response(performance_goal_repr(goal), status=201)
+
+
+class PerformanceGoalDetailView(APIView):
+    def get_object(self, pk):
+        return PerformanceGoal.objects(id=pk).first()
+
+    def _owns(self, request, goal):
+        return goal.employee and str(goal.employee.id) == str(request.user.id)
+
+    def get(self, request, pk):
+        goal = self.get_object(pk)
+        if not goal:
+            return Response({"detail": "Not found."}, status=404)
+        if request.user.role not in MANAGEMENT_ROLES and not self._owns(request, goal):
+            return Response({"detail": "Forbidden."}, status=403)
+        return Response(performance_goal_repr(goal))
+
+    def patch(self, request, pk):
+        goal = self.get_object(pk)
+        if not goal:
+            return Response({"detail": "Not found."}, status=404)
+        is_mgmt = request.user.role in MANAGEMENT_ROLES
+        if not is_mgmt and not self._owns(request, goal):
+            return Response({"detail": "Forbidden."}, status=403)
+        s = PerformanceGoalUpdateSerializer(data=request.data, partial=True)
+        s.is_valid(raise_exception=True)
+        d = s.validated_data
+        for field in (
+            "kind", "title", "description", "target",
+            "weightage", "period", "status", "score",
+        ):
+            if field not in d:
+                continue
+            # Owners who aren't management may only touch progress fields.
+            if not is_mgmt and field not in _PERF_OWNER_FIELDS:
+                continue
+            setattr(goal, field, d[field])
+        goal.save()
+        return Response(performance_goal_repr(goal))
+
+    def delete(self, request, pk):
+        if request.user.role not in MANAGEMENT_ROLES:
+            return Response({"detail": "Forbidden."}, status=403)
+        goal = self.get_object(pk)
+        if not goal:
+            return Response({"detail": "Not found."}, status=404)
+        goal.delete()
+        return Response(status=204)

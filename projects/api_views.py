@@ -14,10 +14,16 @@ def project_stats(project):
     tasks = Task.objects(project=project)
     total = tasks.count()
     completed = tasks.filter(status="completed").count()
+    # Actual hours are auto-calculated from the project's tasks.
+    actual = round(tasks.sum("actual_hours") or 0, 2)
+    estimated = project.estimated_hours or 0
     return {
         "total_tasks": total,
         "completed_tasks": completed,
         "progress": round(completed / total * 100) if total else 0,
+        "estimated_hours": estimated,
+        "actual_hours": actual,
+        "remaining_hours": round(estimated - actual, 2),
     }
 
 
@@ -58,6 +64,7 @@ class ProjectListCreateView(APIView):
             end_date=d.get("end_date"),
             status=d["status"],
             priority=d["priority"],
+            estimated_hours=d.get("estimated_hours", 0) or 0,
             manager=manager,
             team_members=_members(d.get("team_member_ids", [])),
             created_by=request.user,
@@ -86,7 +93,10 @@ class ProjectDetailView(APIView):
         s = ProjectWriteSerializer(data=request.data, partial=True)
         s.is_valid(raise_exception=True)
         d = s.validated_data
-        for f in ("name", "description", "start_date", "end_date", "status", "priority"):
+        for f in (
+            "name", "description", "start_date", "end_date",
+            "status", "priority", "estimated_hours",
+        ):
             if f in d:
                 setattr(p, f, d[f])
         if "manager_id" in d:

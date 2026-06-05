@@ -17,7 +17,7 @@
       <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Department</th><th>Status</th><th></th></tr></thead>
       <tbody>
         {% for e in employees %}
-        <tr>
+        <tr id="emp-row-{{ e.id }}">
           <td><small>{{ e.employee_id }}</small></td>
           <td>{{ e.full_name }}</td>
           <td><small>{{ e.email }}</small></td>
@@ -25,7 +25,9 @@
           <td><span class="badge bg-primary">{{ e.role_label }}</span></td>
           <td><small>{{ e.department.name|default:'—' }}</small></td>
           <td>{% if e.status == 'active' %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">{{ e.status }}</span>{% endif %}</td>
-          <td class="text-end">
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-link p-0 me-2" href="/employees/{{ e.id }}/performance/"
+               title="KRA / KPI"><i class="bi bi-graph-up-arrow"></i> KRA/KPI</a>
             {% if e.id != current_user.id %}
               {% if e.status == 'active' %}
               <button class="btn btn-sm btn-link text-danger p-0"
@@ -36,6 +38,10 @@
                       data-id="{{ e.id }}"
                       data-name="{{ e.full_name }}"><i class="bi bi-person-check"></i> Activate</button>
               {% endif %}
+              <button class="btn btn-sm btn-link text-danger p-0 ms-2"
+                      data-delete-url="/api/v1/auth/employees/{{ e.id }}/?hard=1"
+                      data-remove="#emp-row-{{ e.id }}"
+                      data-confirm="Permanently DELETE '{{ e.full_name }}'? This removes the employee and their KRA/KPI records and cannot be undone. To merely block login, use Deactivate instead."><i class="bi bi-trash"></i> Delete</button>
             {% endif %}
           </td>
         </tr>

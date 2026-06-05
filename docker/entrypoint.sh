@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -e
 
+# Container starts as root so we can fix ownership of the mounted named volumes
+# (media/staticfiles) and the sqlite db dir, then drop to the unprivileged
+# appuser for the actual process.
+if [ "$(id -u)" = "0" ]; then
+  mkdir -p /app/staticfiles /app/media
+  chown -R appuser:appuser /app/staticfiles /app/media
+  chown appuser:appuser /app
+  [ -f /app/db.sqlite3 ] && chown appuser:appuser /app/db.sqlite3
+  exec gosu appuser "$0" "$@"
+fi
+
 echo "Waiting for MongoDB at ${MONGO_HOST}:${MONGO_PORT}..."
 python - <<'PY'
 import os, time, sys

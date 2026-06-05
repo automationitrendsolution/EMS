@@ -1,6 +1,10 @@
 """Module 12: Report builders. Each returns (title, columns, rows)."""
-from accounts.models import User
-from core.constants import STATUS_LABELS
+from accounts.models import PerformanceGoal, User
+from core.constants import (
+    PERF_KIND_LABELS,
+    PERF_STATUS_LABELS,
+    STATUS_LABELS,
+)
 from projects.models import Project
 from tasks.models import Task, TimeLog
 
@@ -32,16 +36,21 @@ def task_report(filters=None):
 
 def project_report():
     columns = ["Project", "Status", "Priority", "Manager", "Total Tasks",
-               "Completed", "Progress %", "Start", "End"]
+               "Completed", "Progress %", "Est. Hrs", "Actual Hrs",
+               "Remaining Hrs", "Start", "End"]
     rows = []
     for p in Project.objects().order_by("-created_at"):
         tasks = Task.objects(project=p)
         total = tasks.count()
         done = tasks.filter(status="completed").count()
+        est = p.estimated_hours or 0
+        # Actual hours are auto-calculated from the project's task time logs.
+        actual = round(tasks.sum("actual_hours") or 0, 2)
         rows.append([
             p.name, p.status, p.priority,
             p.manager.full_name if p.manager else "",
             total, done, round(done / total * 100) if total else 0,
+            est, actual, round(est - actual, 2),
             _fmt(p.start_date), _fmt(p.end_date),
         ])
     return "Project Report", columns, rows
@@ -77,18 +86,55 @@ def productivity_report():
     return "Productivity Report", columns, rows
 
 
+def performance_report(filters=None):
+    """All employees' KRA / KPI goals. Optional filters: employee_id, kind,
+    status."""
+    filters = filters or {}
+    qs = PerformanceGoal.objects()
+    if filters.get("employee_id"):
+        qs = qs.filter(employee=filters["employee_id"])
+    if filters.get("kind"):
+        qs = qs.filter(kind=filters["kind"])
+    if filters.get("status"):
+        qs = qs.filter(status=filters["status"])
+    columns = ["Employee ID", "Employee", "Department", "Type", "Title",
+               "Target", "Weightage %", "Period", "Status", "Score"]
+    rows = []
+    # Group by employee name, then KRA before KPI, for a readable layout.
+    for g in qs.order_by("kind"):
+        emp = g.employee
+        rows.append([
+            emp.employee_id if emp else "",
+            emp.full_name if emp else "(deleted)",
+            emp.department.name if emp and emp.department else "",
+            PERF_KIND_LABELS.get(g.kind, g.kind),
+            g.title,
+            g.target or "",
+            g.weightage or 0,
+            g.period or "",
+            PERF_STATUS_LABELS.get(g.status, g.status),
+            g.score or 0,
+        ])
+    rows.sort(key=lambda r: (r[1], r[3]))
+    return "Performance (KRA/KPI) Report", columns, rows
+
+
 REPORTS = {
     "task": task_report,
     "project": project_report,
     "employee": employee_report,
     "productivity": productivity_report,
+    "performance": performance_report,
 }
+
+# Reports that accept a ``filters`` argument.
+FILTERED_REPORTS = {"task", "performance"}
 
 
 def build(report_type, filters=None):
     fn = REPORTS.get(report_type)
     if not fn:
         raise ValueError(f"Unknown report type: {report_type}")
-    if report_type == "task":
+    if report_type in FILTERED_REPORTS:
         return fn(filters)
     return fn()

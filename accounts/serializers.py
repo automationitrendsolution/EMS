@@ -1,7 +1,15 @@
 """Input validation + output representation for accounts."""
 from rest_framework import serializers
 
-from core.constants import EMPLOYEE_STATUSES, ROLES
+from core.constants import (
+    EMPLOYEE_STATUSES,
+    PERF_KIND_KRA,
+    PERF_KIND_LABELS,
+    PERF_KINDS,
+    PERF_STATUS_LABELS,
+    PERF_STATUSES,
+    ROLES,
+)
 from core.utils import doc_brief
 
 
@@ -104,3 +112,53 @@ class TeamSerializer(serializers.Serializer):
     member_ids = serializers.ListField(
         child=serializers.CharField(), required=False, default=list
     )
+
+
+# ---- Performance goals (KRA / KPI) ----
+def performance_goal_repr(g):
+    if not g:
+        return None
+    return {
+        "id": str(g.id),
+        "employee": doc_brief(g.employee),
+        "kind": g.kind,
+        "kind_label": PERF_KIND_LABELS.get(g.kind, g.kind),
+        "title": g.title,
+        "description": g.description,
+        "target": g.target,
+        "weightage": g.weightage,
+        "period": g.period,
+        "status": g.status,
+        "status_label": PERF_STATUS_LABELS.get(g.status, g.status),
+        "score": g.score,
+        "created_by": doc_brief(g.created_by),
+        "created_at": g.created_at.isoformat() if g.created_at else None,
+        "updated_at": g.updated_at.isoformat() if g.updated_at else None,
+    }
+
+
+class PerformanceGoalCreateSerializer(serializers.Serializer):
+    employee_id = serializers.CharField()
+    kind = serializers.ChoiceField(choices=PERF_KINDS, default=PERF_KIND_KRA)
+    title = serializers.CharField(max_length=200)
+    description = serializers.CharField(required=False, allow_blank=True)
+    target = serializers.CharField(required=False, allow_blank=True)
+    weightage = serializers.IntegerField(
+        required=False, min_value=0, max_value=100, default=0
+    )
+    period = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=PERF_STATUSES, default="not_started")
+    score = serializers.FloatField(
+        required=False, min_value=0, max_value=100, default=0
+    )
+
+
+class PerformanceGoalUpdateSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=PERF_KINDS, required=False)
+    title = serializers.CharField(max_length=200, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+    target = serializers.CharField(required=False, allow_blank=True)
+    weightage = serializers.IntegerField(required=False, min_value=0, max_value=100)
+    period = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=PERF_STATUSES, required=False)
+    score = serializers.FloatField(required=False, min_value=0, max_value=100)

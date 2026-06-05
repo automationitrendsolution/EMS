@@ -4,9 +4,24 @@ import datetime
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
-from accounts.models import Department, Designation, Team, User
+from accounts.models import (
+    Department,
+    Designation,
+    PerformanceGoal,
+    Team,
+    User,
+)
 from accounts.services import create_user
-from core.constants import MANAGEMENT_ROLES, ROLE_LABELS, ROLES
+from core.constants import (
+    MANAGEMENT_ROLES,
+    PERF_KINDS,
+    PERF_KIND_FULL_LABELS,
+    PERF_KIND_LABELS,
+    PERF_STATUS_LABELS,
+    PERF_STATUSES,
+    ROLE_LABELS,
+    ROLES,
+)
 from core.decorators import login_required, roles_required
 from core.utils import save_upload
 
@@ -109,3 +124,53 @@ def employee_create(request):
     except Exception as e:  # noqa
         messages.error(request, f"Could not create employee: {e}")
     return redirect("/employees/")
+
+
+# ---------------------------------------------------------------------------
+# Performance: KRA (Key Result Area) / KPI (Key Performance Indicator)
+# ---------------------------------------------------------------------------
+def _performance_context(employee, *, can_edit, self_view):
+    """Build the shared template context for a performance page."""
+    goals = list(
+        PerformanceGoal.objects(employee=employee.id).order_by("kind", "-created_at")
+    )
+    kras = [g for g in goals if g.kind == "kra"]
+    kpis = [g for g in goals if g.kind == "kpi"]
+    # Average score across all scored goals — a quick overall rating.
+    scored = [g.score for g in goals if g.score]
+    avg_score = round(sum(scored) / len(scored), 1) if scored else 0
+    return {
+        "active": "performance" if self_view else "employees",
+        "employee": employee,
+        "self_view": self_view,
+        "can_edit": can_edit,
+        "kras": kras,
+        "kpis": kpis,
+        "goal_count": len(goals),
+        "avg_score": avg_score,
+        "kinds": [(k, PERF_KIND_LABELS[k], PERF_KIND_FULL_LABELS[k]) for k in PERF_KINDS],
+        "statuses": [(s, PERF_STATUS_LABELS[s]) for s in PERF_STATUSES],
+    }
+
+
+@login_required
+def my_performance_page(request):
+    """The logged-in employee's own KRAs / KPIs (read-only definitions)."""
+    ctx = _performance_context(
+        request.current_user,
+        can_edit=request.current_user.role in MANAGEMENT_ROLES,
+        self_view=True,
+    )
+    return render(request, "performance/list.html", ctx)
+
+
+@login_required
+@roles_required(*MANAGEMENT_ROLES)
+def employee_performance_page(request, pk):
+    """Management view of a specific employee's KRAs / KPIs (full edit)."""
+    employee = User.objects(id=pk).first()
+    if not employee:
+        messages.error(request, "Employee not found.")
+        return redirect("/employees/")
+    ctx = _performance_context(employee, can_edit=True, self_view=False)
+    return render(request, "performance/list.html", ctx)

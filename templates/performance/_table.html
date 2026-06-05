@@ -1,0 +1,46 @@
+{% comment %}Reusable KRA/KPI table. Expects: goals, label, full_label, kind.
+Inherits can_edit, self_view, statuses from the parent context.{% endcomment %}
+<div class="card stat-card mb-3"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="mb-0"><span class="badge bg-info text-dark">{{ label }}</span> {{ full_label }}</h6>
+    {% if can_edit %}<button class="btn btn-sm btn-primary perf-add" data-kind="{{ kind }}"><i class="bi bi-plus-lg"></i> Add {{ label }}</button>{% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Title</th><th>Target</th><th>Weight</th><th>Period</th><th>Status</th><th>Score</th>{% if can_edit %}<th class="text-end">Actions</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for g in goals %}
+        <tr data-id="{{ g.id }}">
+          <td><strong>{{ g.title }}</strong>{% if g.description %}<br><small class="text-muted">{{ g.description }}</small>{% endif %}</td>
+          <td><small>{{ g.target|default:'—' }}</small></td>
+          <td>{{ g.weightage }}%</td>
+          <td><small>{{ g.period|default:'—' }}</small></td>
+          <td>
+            {% if can_edit or self_view %}
+            <select class="form-select form-select-sm perf-status" style="min-width:140px">
+              {% for sval,slabel in statuses %}<option value="{{ sval }}" {% if g.status == sval %}selected{% endif %}>{{ slabel }}</option>{% endfor %}
+            </select>
+            {% else %}<span class="badge bg-secondary">{{ g.status }}</span>{% endif %}
+          </td>
+          <td>
+            {% if can_edit %}
+            <input type="number" class="form-control form-control-sm perf-score" value="{{ g.score }}" min="0" max="100" step="0.5" style="width:84px" />
+            {% else %}<span class="badge bg-light text-dark">{{ g.score }}</span>{% endif %}
+          </td>
+          {% if can_edit %}
+          <td class="text-end text-nowrap">
+            <button class="btn btn-sm btn-link p-0 me-2 perf-edit"
+              data-id="{{ g.id }}" data-kind="{{ g.kind }}" data-title="{{ g.title }}"
+              data-description="{{ g.description|default:'' }}" data-target="{{ g.target|default:'' }}"
+              data-weightage="{{ g.weightage }}" data-period="{{ g.period|default:'' }}"
+              data-status="{{ g.status }}" data-score="{{ g.score }}" title="Edit"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-link text-danger p-0 perf-delete" data-id="{{ g.id }}" data-title="{{ g.title }}" title="Delete"><i class="bi bi-trash"></i></button>
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}<tr><td colspan="{% if can_edit %}7{% else %}6{% endif %}" class="text-center text-muted py-3">No {{ label }} defined yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>

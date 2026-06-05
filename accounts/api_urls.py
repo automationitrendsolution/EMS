@@ -18,4 +18,15 @@ urlpatterns = [
         name="api-designations",
     ),
     path("teams/", v.TeamListCreateView.as_view(), name="api-teams"),
+    # performance goals (KRA / KPI)
+    path(
+        "performance/",
+        v.PerformanceGoalListCreateView.as_view(),
+        name="api-performance",
+    ),
+    path(
+        "performance/<str:pk>/",
+        v.PerformanceGoalDetailView.as_view(),
+        name="api-performance-detail",
+    ),
 ]

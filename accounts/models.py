@@ -3,10 +3,13 @@ import datetime
 
 import bcrypt
 from mongoengine import (
+    CASCADE,
     BooleanField,
     DateTimeField,
     Document,
     EmailField,
+    FloatField,
+    IntField,
     ListField,
     ReferenceField,
     StringField,
@@ -14,6 +17,9 @@ from mongoengine import (
 
 from core.constants import (
     EMPLOYEE_STATUSES,
+    PERF_KIND_KRA,
+    PERF_KINDS,
+    PERF_STATUSES,
     ROLE_EMPLOYEE,
     ROLE_LABELS,
     ROLES,
@@ -131,3 +137,39 @@ class User(Document):
 
     def __str__(self):
         return f"{self.full_name} ({self.employee_id})"
+
+
+class PerformanceGoal(Document):
+    """A KRA (Key Result Area) or KPI (Key Performance Indicator) for an employee.
+
+    KRAs and KPIs share the same structure, so a single document with a
+    ``kind`` discriminator covers both.
+    """
+
+    meta = {
+        "collection": "performance_goals",
+        "indexes": ["employee", "kind", "status", "period"],
+        "ordering": ["kind", "-created_at"],
+    }
+
+    # Remove an employee's goals if the employee document is ever deleted.
+    employee = ReferenceField(User, required=True, reverse_delete_rule=CASCADE)
+    kind = StringField(choices=PERF_KINDS, default=PERF_KIND_KRA, required=True)
+    title = StringField(required=True, max_length=200)
+    description = StringField()
+    target = StringField(max_length=300)  # the measurable target / metric
+    weightage = IntField(default=0, min_value=0, max_value=100)  # percent
+    period = StringField(max_length=60)  # e.g. "Q1 2026", "FY2026"
+    status = StringField(choices=PERF_STATUSES, default="not_started")
+    score = FloatField(default=0.0, min_value=0, max_value=100)  # rating out of 100
+
+    created_by = ReferenceField(User)
+    created_at = DateTimeField(default=utcnow)
+    updated_at = DateTimeField(default=utcnow)
+
+    def save(self, *args, **kwargs):
+        self.updated_at = utcnow()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"[{self.kind.upper()}] {self.title}"

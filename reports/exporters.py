@@ -1,6 +1,7 @@
 """Render report (title, columns, rows) to CSV / Excel / PDF HttpResponses."""
 import csv
 import io
+import re
 
 from django.http import HttpResponse
 
@@ -21,7 +22,8 @@ def to_excel(title, columns, rows):
 
     wb = Workbook()
     ws = wb.active
-    ws.title = title[:31]
+    # Excel sheet names can't contain : \ / ? * [ ] and max 31 chars.
+    ws.title = re.sub(r"[:\\/?*\[\]]", "-", title)[:31]
     header_fill = PatternFill("solid", fgColor="4F46E5")
     bold_white = Font(bold=True, color="FFFFFF")
     ws.append(columns)
