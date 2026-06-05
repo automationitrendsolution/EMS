@@ -36,6 +36,8 @@
     if (filters.search) q.set("search", filters.search);
     if (filters.assigned_to_id) q.set("assigned_to_id", filters.assigned_to_id);
     const data = await API.get(`/kanban/${projectId}/?` + q.toString());
+    const scopeEl = document.getElementById("boardScope");
+    if (scopeEl && data.scope) scopeEl.textContent = "View: " + data.scope;
     board.innerHTML = "";
     data.columns.forEach((col) => {
       const el = document.createElement("div");
@@ -48,6 +50,7 @@
       board.appendChild(el);
     });
     wireDnd();
+    if (window.initTooltips) window.initTooltips(board);
   }
 
   function wireDnd() {
@@ -71,6 +74,7 @@
           await API.post(`/tasks/${dragged.dataset.id}/move/`, {
             status: col.dataset.status, board_order: order,
           });
+          Sound.play("notification");
         } catch (err) { toast(err.message, "danger"); load(); }
       });
     });

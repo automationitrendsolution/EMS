@@ -1,6 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}{{ project.name }} · iTrendTASKS{% endblock %}
 {% block heading %}{{ project.name }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="/projects/">Projects</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{ project.name }}</li>
+{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
   <div>

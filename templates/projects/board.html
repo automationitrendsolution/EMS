@@ -2,18 +2,26 @@
 {% load static %}
 {% block title %}Board · {{ project.name }}{% endblock %}
 {% block heading %}{{ project.name }} — Kanban{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="/projects/">Projects</a></li>
+  <li class="breadcrumb-item"><a href="/projects/{{ project.id }}/">{{ project.name }}</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Board</li>
+{% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap gap-2 mb-3">
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
   <input class="form-control" id="boardSearch" placeholder="Search tasks..." style="max-width:280px" />
+  {% if is_management %}
   <select class="form-select" id="boardAssignee" style="max-width:220px">
     <option value="">All assignees</option>
     {% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}
   </select>
+  {% endif %}
+  <span class="badge bg-info text-dark" id="boardScope" title="Tasks visible to your role"></span>
   <a href="/projects/{{ project.id }}/" class="btn btn-outline-secondary ms-auto"><i class="bi bi-arrow-left"></i> Back</a>
 </div>
 <p class="text-muted small">Drag cards between columns · double-click a card to open it · updates sync in realtime.</p>
 <div class="kanban" id="kanban" data-project-id="{{ project.id }}"></div>
 {% endblock %}
 {% block scripts %}
-<script src="{% static 'js/kanban.js' %}"></script>
+<script src="{% static 'js/kanban.js' %}?v=2"></script>
 {% endblock %}

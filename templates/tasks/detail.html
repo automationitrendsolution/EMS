@@ -1,6 +1,11 @@
 {% extends 'base.html' %}
 {% block title %}{{ task.task_id }} · {{ task.title }}{% endblock %}
 {% block heading %}{{ task.task_id }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="/projects/">Projects</a></li>
+  <li class="breadcrumb-item"><a href="/projects/{{ task.project.id }}/">{{ task.project.name }}</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{ task.task_id }}</li>
+{% endblock %}
 {% block content %}
 <div class="row g-3" data-task-id="{{ task.id }}">
   <div class="col-lg-8">
@@ -55,7 +60,7 @@
         <li class="list-group-item d-flex align-items-center gap-2 px-0" data-sid="{{ s.sid }}">
           <input type="checkbox" class="form-check-input sub-check" {% if s.is_done %}checked{% endif %} />
           <span class="flex-grow-1 {% if s.is_done %}text-decoration-line-through text-muted{% endif %}">{{ s.title }}</span>
-          <button class="btn btn-sm btn-link text-danger sub-del"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-link text-danger sub-del" title="Delete subtask"><i class="bi bi-trash"></i></button>
         </li>
         {% endfor %}
       </ul>
@@ -76,7 +81,7 @@
             <div class="d-flex justify-content-between">
               <div><b>{{ c.author.full_name }}</b> <small class="text-muted">{{ c.created_at|date:'M d, H:i' }}{% if c.is_edited %} · edited{% endif %}</small></div>
               {% if is_management or c.author.id == current_user.id %}
-              <button class="btn btn-sm btn-link text-danger p-0"
+              <button class="btn btn-sm btn-link text-danger p-0" title="Delete comment"
                       data-delete-url="/api/v1/tasks/{{ task.id }}/comments/{{ c.id }}/"
                       data-remove="#comment-{{ c.id }}"
                       data-confirm="Delete this comment?"><i class="bi bi-trash"></i></button>
@@ -122,7 +127,7 @@
         <li class="d-flex justify-content-between align-items-center" id="att-{{ a.id }}">
           <a href="{{ a.url }}" target="_blank"><i class="bi bi-paperclip"></i> {{ a.original_name }}</a>
           {% if is_management or a.uploaded_by.id == current_user.id %}
-          <button class="btn btn-sm btn-link text-danger p-0"
+          <button class="btn btn-sm btn-link text-danger p-0" title="Delete attachment"
                   data-delete-url="/api/v1/tasks/{{ task.id }}/attachments/{{ a.id }}/"
                   data-remove="#att-{{ a.id }}"
                   data-confirm="Delete attachment '{{ a.original_name }}'?"><i class="bi bi-trash"></i></button>
@@ -155,11 +160,16 @@
 {{ active_timer|json_script:"activeTimerData" }}
 <script>
   const TASK = "{{ task.id }}";
-  async function patchTask(body) {
-    try { await API.patch(`/tasks/${TASK}/`, body); toast("Saved"); }
+  async function patchTask(body, soundKind) {
+    try {
+      await API.patch(`/tasks/${TASK}/`, body);
+      if (soundKind) { Sound.play(soundKind); toast("Saved", "info"); }
+      else { toast("Saved"); }
+    }
     catch (e) { toast(e.message, "danger"); }
   }
-  document.getElementById("statusSel").addEventListener("change", e => patchTask({ status: e.target.value }));
+  document.getElementById("statusSel").addEventListener("change", e =>
+    patchTask({ status: e.target.value }, "notification"));
   document.getElementById("prioritySel").addEventListener("change", e => patchTask({ priority: e.target.value }));
   document.getElementById("assigneeSel").addEventListener("change", e => patchTask({ assigned_to_id: e.target.value }));
 

@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}My Tasks · iTrendTASKS{% endblock %}
 {% block heading %}My Tasks{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active" aria-current="page">My Tasks</li>{% endblock %}
 {% block content %}
 <div class="card stat-card"><div class="card-body">
   <div class="table-responsive">
@@ -18,7 +19,7 @@
           <td><small>{{ t.due_date|date:'M d, Y'|default:'—' }}</small></td>
           <td class="text-end">
             {% if is_management or t.reporter and t.reporter.id == current_user.id %}
-            <button class="btn btn-sm btn-link text-danger p-0"
+            <button class="btn btn-sm btn-link text-danger p-0" title="Delete task"
                     data-delete-url="/api/v1/tasks/{{ t.id }}/"
                     data-confirm="Delete task '{{ t.title }}'?"><i class="bi bi-trash"></i></button>
             {% endif %}

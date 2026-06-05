@@ -11,6 +11,7 @@
         badge.style.display = "inline-block";
         badge.textContent = (parseInt(badge.textContent || "0", 10) || 0) + 1;
       }
+      Sound.play("notification");
       toast(`🔔 ${data.title}`, "info");
     };
     ws.onclose = () => setTimeout(connect, 4000);

@@ -39,8 +39,22 @@ SECRET_KEY = env("SECRET_KEY", "dev-insecure-secret-key")
 DEBUG = env_bool("DEBUG", True)
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0") or ["*"]
 CSRF_TRUSTED_ORIGINS = env_list(
-    "CSRF_TRUSTED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000"
+    "CSRF_TRUSTED_ORIGINS",
+    "http://localhost,http://localhost:80,http://localhost:8000,"
+    "http://127.0.0.1,http://127.0.0.1:80,http://127.0.0.1:8000",
 )
+
+# When running inside GitHub Codespaces, automatically trust the forwarded
+# domain (e.g. https://<name>-80.app.github.dev) for both host and CSRF checks.
+_CODESPACE = env("CODESPACE_NAME")
+_FORWARD_DOMAIN = env("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN")
+if _CODESPACE and _FORWARD_DOMAIN:
+    _wildcard_host = f".{_FORWARD_DOMAIN}"
+    if _wildcard_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_wildcard_host)
+    _wildcard_origin = f"https://*.{_FORWARD_DOMAIN}"
+    if _wildcard_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_wildcard_origin)
 
 INSTALLED_APPS = [
     "daphne",

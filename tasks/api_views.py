@@ -43,6 +43,7 @@ from tasks.serializers import (
     timelog_repr,
 )
 from tasks.services import (
+    board_scope,
     broadcast_board,
     log_activity,
     next_task_id,
@@ -368,7 +369,8 @@ def kanban_board(request, project_id):
         return Response({"detail": "Not found."}, status=404)
     if not can_view_project(request.user, project):
         return Response({"detail": "Forbidden."}, status=403)
-    qs = Task.objects(project=project)
+    # Scope the visible cards by the viewer's role (RBAC).
+    qs, scope_label = board_scope(request.user, project)
     if request.query_params.get("search"):
         qs = qs.filter(title__icontains=request.query_params["search"])
     if request.query_params.get("assigned_to_id"):
@@ -380,6 +382,7 @@ def kanban_board(request, project_id):
     return Response(
         {
             "project": {"id": str(project.id), "name": project.name},
+            "scope": scope_label,
             "columns": [
                 {"key": col, "label": STATUS_LABELS[col], "tasks": columns[col]}
                 for col in KANBAN_COLUMNS

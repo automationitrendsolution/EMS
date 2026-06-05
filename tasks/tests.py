@@ -93,3 +93,30 @@ class TaskAPITests(MongoTestCase):
         self.assertEqual(res.status_code, 200)
         cols = {c["key"]: c for c in res.json()["columns"]}
         self.assertEqual(len(cols["todo"]["tasks"]), 1)
+
+    def test_kanban_board_role_scoped(self):
+        # Two employees, one task each, both members of the project.
+        from accounts.services import create_user
+
+        emp1 = create_user(full_name="E1", email="e1@x.com", password="pw123456")
+        emp2 = create_user(full_name="E2", email="e2@x.com", password="pw123456")
+        self.project.team_members = [emp1, emp2]
+        self.project.save()
+        Task(task_id=next_task_id(), title="A", project=self.project,
+             status="todo", assigned_to=emp1).save()
+        Task(task_id=next_task_id(), title="B", project=self.project,
+             status="todo", assigned_to=emp2).save()
+
+        # Admin sees both; scope label "All tasks".
+        res = self.client.get(f"/api/v1/kanban/{self.project.id}/", **self.auth)
+        todo = [c for c in res.json()["columns"] if c["key"] == "todo"][0]
+        self.assertEqual(len(todo["tasks"]), 2)
+        self.assertEqual(res.json()["scope"], "All tasks")
+
+        # Employee 1 sees only their own card; scope label "Your tasks".
+        e1_auth = {"HTTP_AUTHORIZATION": f"Bearer {make_token_pair(emp1)['access']}"}
+        res = self.client.get(f"/api/v1/kanban/{self.project.id}/", **e1_auth)
+        todo = [c for c in res.json()["columns"] if c["key"] == "todo"][0]
+        self.assertEqual(len(todo["tasks"]), 1)
+        self.assertEqual(todo["tasks"][0]["title"], "A")
+        self.assertEqual(res.json()["scope"], "Your tasks")

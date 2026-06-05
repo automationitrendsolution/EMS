@@ -10,6 +10,47 @@ def utcnow():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
+def board_scope(user, project):
+    """Role-based task queryset for a project's Kanban board.
+
+    * Management (Super Admin / Admin / Project Manager): all project tasks.
+    * Team Leader: tasks of their team members (+ their own / reported).
+    * Employee: only tasks assigned to or reported by them.
+
+    Returns ``(queryset, scope_label)``.
+    """
+    from core.constants import MANAGEMENT_ROLES, ROLE_TEAM_LEADER
+    from tasks.models import Task
+
+    base = Task.objects(project=project)
+    if user.role in MANAGEMENT_ROLES:
+        return base, "All tasks"
+
+    if user.role == ROLE_TEAM_LEADER:
+        from accounts.models import Team
+
+        member_ids = {user.id}
+        for team in Team.objects(leader=user):
+            member_ids.update(m.id for m in team.members if m)
+        return (
+            base.filter(
+                __raw__={
+                    "$or": [
+                        {"assigned_to": {"$in": list(member_ids)}},
+                        {"reporter": user.id},
+                    ]
+                }
+            ),
+            "Your team's tasks",
+        )
+
+    # Employee
+    return (
+        base.filter(__raw__={"$or": [{"assigned_to": user.id}, {"reporter": user.id}]}),
+        "Your tasks",
+    )
+
+
 def next_task_id():
     last = Task.objects.order_by("-created_at").first()
     n = Task.objects.count() + 1
