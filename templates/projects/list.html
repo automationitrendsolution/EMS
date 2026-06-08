@@ -40,6 +40,19 @@
         <div class="d-flex gap-1">
           <a href="/projects/{{ p.obj.id }}/board/" class="btn btn-sm btn-outline-primary"><i class="bi bi-kanban"></i> Board</a>
           {% if can_manage %}
+          <button class="btn btn-sm btn-outline-secondary edit-proj-btn" title="Edit project"
+                  data-id="{{ p.obj.id }}"
+                  data-name="{{ p.obj.name }}"
+                  data-desc="{{ p.obj.description|default:'' }}"
+                  data-status="{{ p.obj.status }}"
+                  data-priority="{{ p.obj.priority }}"
+                  data-start="{{ p.obj.start_date|date:'Y-m-d' }}"
+                  data-end="{{ p.obj.end_date|date:'Y-m-d' }}"
+                  data-est="{{ p.obj.estimated_hours }}"
+                  data-manager="{{ p.obj.manager.id|default:'' }}"
+                  data-members="{% for m in p.obj.team_members %}{{ m.id }}{% if not forloop.last %},{% endif %}{% endfor %}">
+            <i class="bi bi-pencil"></i>
+          </button>
           <button class="btn btn-sm btn-outline-danger" title="Delete project"
                   data-delete-url="/api/v1/projects/{{ p.obj.id }}/"
                   data-redirect="/projects/"
@@ -72,7 +85,10 @@
         <div class="col"><select class="form-select" name="priority">{% for p in priorities %}<option value="{{ p }}">{{ p|capfirst }}</option>{% endfor %}</select></div>
       </div>
       <div class="row g-2 mb-2">
-        <div class="col"><input type="number" step="0.5" min="0" class="form-control" name="estimated_hours" placeholder="Estimated hrs" /></div>
+        <div class="col">
+          <input type="number" step="0.5" min="0" class="form-control" name="estimated_hours" id="newProjEstHours" placeholder="Estimated hrs" />
+          <div class="form-text text-primary fw-semibold" id="newProjEstDays"></div>
+        </div>
         <div class="col d-flex align-items-center"><small class="text-muted">Actual hrs auto-calculated from task time logs.</small></div>
       </div>
       <select class="form-select mb-2" name="manager_id">
@@ -87,22 +103,161 @@
     </form>
   </div></div>
 </div></div>
+
+<!-- Shared Edit Project Modal -->
+<div class="modal fade" id="editProjModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Edit Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editProjForm">
+          <input type="hidden" id="editProjId" name="_id" />
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Project Name</label>
+            <input class="form-control" name="name" id="editProjName" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Description</label>
+            <textarea class="form-control" name="description" id="editProjDesc" rows="3"></textarea>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Status</label>
+              <select class="form-select" name="status" id="editProjStatus">
+                {% for s in statuses %}<option value="{{ s }}">{{ s|capfirst }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Priority</label>
+              <select class="form-select" name="priority" id="editProjPriority">
+                {% for p in priorities %}<option value="{{ p }}">{{ p|capfirst }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Start Date</label>
+              <input type="date" class="form-control" name="start_date" id="editProjStart" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">End Date</label>
+              <input type="date" class="form-control" name="end_date" id="editProjEnd" />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Estimated Hours</label>
+            <input type="number" step="0.5" min="0" class="form-control" name="estimated_hours" id="editProjEstHours" />
+            <div class="form-text text-primary fw-semibold" id="editProjEstDays"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Manager</label>
+            <select class="form-select" name="manager_id" id="editProjManager">
+              <option value="">No manager</option>
+              {% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Team Members <small class="text-muted">(Ctrl/Cmd-click for multiple)</small></label>
+            <select class="form-select" name="team_member_ids" id="editProjMembers" multiple size="5">
+              {% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}
+            </select>
+          </div>
+          <button class="btn btn-primary w-100"><i class="bi bi-check-lg"></i> Save Changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
+  // Create Project form
   const f = document.getElementById("projForm");
-  if (f) f.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const fd = new FormData(f);
-    const body = Object.fromEntries(fd.entries());
-    body.team_member_ids = [...f.team_member_ids.selectedOptions].map(o => o.value);
-    if (!body.start_date) delete body.start_date;
-    if (!body.end_date) delete body.end_date;
-    body.estimated_hours = parseFloat(body.estimated_hours || 0);
-    try { await API.post("/projects/", body); location.reload(); }
-    catch (err) { toast(err.message, "danger"); }
-  });
+  if (f) {
+    // Auto-calc estimate from start/end date
+    wireEstimateFromDates({
+      startEl: f.querySelector('[name=start_date]'),
+      endEl:   f.querySelector('[name=end_date]'),
+      hoursEl: document.getElementById('newProjEstHours'),
+      daysEl:  document.getElementById('newProjEstDays'),
+    });
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(f);
+      const body = Object.fromEntries(fd.entries());
+      body.team_member_ids = [...f.team_member_ids.selectedOptions].map(o => o.value);
+      if (!body.start_date) delete body.start_date;
+      if (!body.end_date) delete body.end_date;
+      body.estimated_hours = parseFloat(body.estimated_hours || 0);
+      try { await API.post("/projects/", body); location.reload(); }
+      catch (err) { toast(err.message, "danger"); }
+    });
+  }
+
+  // Edit Project modal — populate from data attributes when edit button clicked
+  const editModal = document.getElementById("editProjModal");
+  if (editModal) {
+    const editProjForm = document.getElementById("editProjForm");
+    // Auto-calc estimate from start/end date
+    wireEstimateFromDates({
+      startEl: editProjForm.querySelector('[name=start_date]'),
+      endEl:   editProjForm.querySelector('[name=end_date]'),
+      hoursEl: document.getElementById('editProjEstHours'),
+      daysEl:  document.getElementById('editProjEstDays'),
+    });
+
+    document.querySelectorAll(".edit-proj-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.getElementById("editProjId").value = btn.dataset.id;
+        document.getElementById("editProjName").value = btn.dataset.name || '';
+        document.getElementById("editProjDesc").value = btn.dataset.desc || '';
+        document.getElementById("editProjStart").value = btn.dataset.start || '';
+        document.getElementById("editProjEnd").value = btn.dataset.end || '';
+        editProjEstHours.value = btn.dataset.est || '';
+        editProjEstDays.textContent = hoursLabel(parseFloat(btn.dataset.est));
+
+        // Set status
+        const statusSel = document.getElementById("editProjStatus");
+        [...statusSel.options].forEach(o => { o.selected = o.value === btn.dataset.status; });
+
+        // Set priority
+        const prioritySel = document.getElementById("editProjPriority");
+        [...prioritySel.options].forEach(o => { o.selected = o.value === btn.dataset.priority; });
+
+        // Set manager
+        const managerSel = document.getElementById("editProjManager");
+        [...managerSel.options].forEach(o => { o.selected = o.value === btn.dataset.manager; });
+
+        // Set team members
+        const memberIds = btn.dataset.members ? btn.dataset.members.split(',').filter(Boolean) : [];
+        document.querySelectorAll("#editProjMembers option").forEach(o => { o.selected = memberIds.includes(o.value); });
+
+        new bootstrap.Modal(editModal).show();
+      });
+    });
+
+    document.getElementById("editProjForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const projId = document.getElementById("editProjId").value;
+      const epf = e.target;
+      const fd = new FormData(epf);
+      const body = Object.fromEntries(fd.entries());
+      delete body._id;
+      body.team_member_ids = [...epf.team_member_ids.selectedOptions].map(o => o.value);
+      if (!body.start_date) delete body.start_date;
+      if (!body.end_date) delete body.end_date;
+      body.estimated_hours = parseFloat(body.estimated_hours || 0);
+      try {
+        await API.patch(`/projects/${projId}/`, body);
+        toast("Project updated");
+        location.reload();
+      } catch (err) { toast(err.message, "danger"); }
+    });
+  }
 </script>
 {% endblock %}

@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 
 from accounts.models import User
-from core.constants import MANAGEMENT_ROLES, PRIORITIES, PROJECT_STATUSES
+from core.constants import MANAGEMENT_ROLES, PRIORITIES, PROJECT_STATUSES, TASK_STATUSES
 from core.decorators import login_required
 from projects.api_views import project_stats
 from projects.models import Project
@@ -58,6 +58,9 @@ def project_detail(request, pk):
             "tasks": tasks,
             "employees": list(User.objects(status="active")),
             "priorities": PRIORITIES,
+            "statuses": PROJECT_STATUSES,
+            "task_statuses": TASK_STATUSES,
+            "member_ids": [str(m.id) for m in project.team_members],
             "can_manage": request.current_user.role in MANAGEMENT_ROLES,
         },
     )

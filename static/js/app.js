@@ -133,6 +133,53 @@ function refreshSoundToggle() {
 /* Initialise Bootstrap tooltips on every element that has a title (or an
    explicit data-bs-toggle="tooltip"). Safe to call repeatedly — already
    initialised elements are skipped, so it also covers dynamically added DOM. */
+/* Count working days (Mon–Fri) between two date values.
+   Accepts Date objects, ISO strings, or datetime-local strings. */
+function businessDays(start, end) {
+  if (!start || !end) return 0;
+  const s = new Date(start); s.setHours(0, 0, 0, 0);
+  const e = new Date(end);   e.setHours(0, 0, 0, 0);
+  if (e <= s) return 0;
+  let count = 0;
+  const cur = new Date(s);
+  while (cur < e) {
+    const d = cur.getDay();
+    if (d !== 0 && d !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+/* Wire an estimated-hours input to auto-fill from date inputs.
+   opts.startEl  – start date input (omit to use today)
+   opts.endEl    – end date input (required)
+   opts.hoursEl  – estimated hours input to fill
+   opts.daysEl   – optional element to display "≈ X days @ 8 hr/day"
+   Fires on change of startEl and endEl; user can still override hours manually. */
+function wireEstimateFromDates({ startEl, endEl, hoursEl, daysEl }) {
+  function hoursLabel(h) {
+    if (!h || h <= 0) return '';
+    const d = (h / 8).toFixed(1);
+    return `≈ ${d} working day${parseFloat(d) === 1.0 ? '' : 's'} @ 8 hr/day`;
+  }
+  function recalc() {
+    const s = startEl ? startEl.value : new Date().toISOString().slice(0, 10);
+    const e = endEl ? endEl.value : null;
+    const days = businessDays(s, e);
+    if (days > 0) {
+      hoursEl.value = days * 8;
+      if (daysEl) daysEl.textContent = hoursLabel(days * 8);
+    }
+  }
+  function refreshLabel() {
+    if (daysEl) daysEl.textContent = hoursLabel(parseFloat(hoursEl.value));
+  }
+  if (startEl) { startEl.addEventListener('change', recalc); startEl.addEventListener('input', recalc); }
+  if (endEl)   { endEl.addEventListener('change', recalc);   endEl.addEventListener('input', recalc); }
+  hoursEl.addEventListener('input', refreshLabel);
+  refreshLabel();
+}
+
 function initTooltips(root = document) {
   if (!window.bootstrap || !bootstrap.Tooltip) return;
   const sel = '[title]:not([data-tt]), [data-bs-toggle="tooltip"]:not([data-tt])';
