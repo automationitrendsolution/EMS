@@ -44,6 +44,19 @@ CSRF_TRUSTED_ORIGINS = env_list(
     "http://127.0.0.1,http://127.0.0.1:80,http://127.0.0.1:8000",
 )
 
+# Auto-trust every explicit ALLOWED_HOSTS entry so deployments only need to
+# set ALLOWED_HOSTS — no separate CSRF_TRUSTED_ORIGINS required.
+# Covers http + https and the common proxy ports (80, 8000, 8002, 8080, 443).
+_TRUST_PORTS = ("", ":80", ":443", ":8000", ":8002", ":8080")
+for _host in ALLOWED_HOSTS:
+    if not _host or _host == "*" or _host.startswith("."):
+        continue
+    for _scheme in ("http", "https"):
+        for _port in _TRUST_PORTS:
+            _origin = f"{_scheme}://{_host}{_port}"
+            if _origin not in CSRF_TRUSTED_ORIGINS:
+                CSRF_TRUSTED_ORIGINS.append(_origin)
+
 # When running inside GitHub Codespaces, automatically trust the forwarded
 # domain (e.g. https://<name>-80.app.github.dev) for both host and CSRF checks.
 _CODESPACE = env("CODESPACE_NAME")
