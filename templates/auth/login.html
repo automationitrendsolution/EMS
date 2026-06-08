@@ -19,10 +19,28 @@
           <input type="email" name="email" class="form-control" placeholder="Email address" required autofocus />
         </div>
         <div class="mb-3">
-          <input type="password" name="password" class="form-control" placeholder="Password" required />
+          <div class="input-group">
+            <input type="password" name="password" id="passwordInput" class="form-control" placeholder="Password" required />
+            <button class="btn btn-outline-secondary" type="button" id="togglePassword" tabindex="-1" title="Show / hide password">
+              <i class="bi bi-eye" id="eyeIcon"></i>
+            </button>
+          </div>
         </div>
         <button class="btn btn-primary w-100">Sign In</button>
       </form>
+      <script>
+        document.getElementById('togglePassword').addEventListener('click', function () {
+          var inp = document.getElementById('passwordInput');
+          var icon = document.getElementById('eyeIcon');
+          if (inp.type === 'password') {
+            inp.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+          } else {
+            inp.type = 'password';
+            icon.className = 'bi bi-eye';
+          }
+        });
+      </script>
     </div>
   </div>
 </div>
