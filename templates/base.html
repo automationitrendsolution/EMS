@@ -28,6 +28,7 @@
       <a href="/performance/" class="{% if active == 'performance' %}active{% endif %}"><i class="bi bi-graph-up-arrow"></i> My Performance</a>
       {% if current_user.role == 'super_admin' or current_user.role == 'admin' or current_user.role == 'project_manager' %}
       <a href="/employees/" class="{% if active == 'employees' %}active{% endif %}"><i class="bi bi-person-badge"></i> Employees</a>
+      <a href="/departments/" class="{% if active == 'departments' %}active{% endif %}"><i class="bi bi-building"></i> Departments</a>
       <a href="/reports/" class="{% if active == 'reports' %}active{% endif %}"><i class="bi bi-bar-chart"></i> Reports</a>
       {% endif %}
       <a href="/notifications/" class="{% if active == 'notifications' %}active{% endif %}"><i class="bi bi-bell"></i> Notifications</a>

@@ -71,6 +71,59 @@ def profile_page(request):
 
 @login_required
 @roles_required(*MANAGEMENT_ROLES)
+def departments_page(request):
+    departments = list(Department.objects().order_by("name"))
+    return render(request, "departments/list.html", {
+        "active": "departments",
+        "departments": departments,
+    })
+
+
+@login_required
+@roles_required(*MANAGEMENT_ROLES)
+def department_create(request):
+    if request.method != "POST":
+        return redirect("/departments/")
+    name = (request.POST.get("name") or "").strip()
+    description = (request.POST.get("description") or "").strip()
+    if not name:
+        messages.error(request, "Department name is required.")
+        return redirect("/departments/")
+    if Department.objects(name=name).first():
+        messages.error(request, "A department with that name already exists.")
+        return redirect("/departments/")
+    Department(name=name, description=description).save()
+    messages.success(request, f"Department '{name}' created.")
+    return redirect("/departments/")
+
+
+@login_required
+@roles_required(*MANAGEMENT_ROLES)
+def department_edit(request, pk):
+    if request.method != "POST":
+        return redirect("/departments/")
+    dept = Department.objects(id=pk).first()
+    if not dept:
+        messages.error(request, "Department not found.")
+        return redirect("/departments/")
+    name = (request.POST.get("name") or "").strip()
+    description = (request.POST.get("description") or "").strip()
+    if not name:
+        messages.error(request, "Department name is required.")
+        return redirect("/departments/")
+    existing = Department.objects(name=name).first()
+    if existing and str(existing.id) != pk:
+        messages.error(request, "A department with that name already exists.")
+        return redirect("/departments/")
+    dept.name = name
+    dept.description = description
+    dept.save()
+    messages.success(request, f"Department '{name}' updated.")
+    return redirect("/departments/")
+
+
+@login_required
+@roles_required(*MANAGEMENT_ROLES)
 def employees_page(request):
     search = request.GET.get("search", "")
     qs = User.objects()

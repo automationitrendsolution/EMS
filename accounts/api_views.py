@@ -238,6 +238,32 @@ class DepartmentListCreateView(APIView):
         return Response(department_repr(d), status=201)
 
 
+class DepartmentDetailView(APIView):
+    def _get(self, pk):
+        d = Department.objects(id=pk).first()
+        if not d:
+            from rest_framework.exceptions import NotFound
+            raise NotFound()
+        return d
+
+    def patch(self, request, pk):
+        if request.user.role not in MANAGEMENT_ROLES:
+            return Response({"detail": "Forbidden."}, status=403)
+        d = self._get(pk)
+        s = DepartmentSerializer(data=request.data, partial=True)
+        s.is_valid(raise_exception=True)
+        for k, v in s.validated_data.items():
+            setattr(d, k, v)
+        d.save()
+        return Response(department_repr(d))
+
+    def delete(self, request, pk):
+        if request.user.role not in MANAGEMENT_ROLES:
+            return Response({"detail": "Forbidden."}, status=403)
+        self._get(pk).delete()
+        return Response(status=204)
+
+
 class DesignationListCreateView(APIView):
     def get(self, request):
         return Response([designation_repr(d) for d in Designation.objects()])

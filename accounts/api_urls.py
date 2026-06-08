@@ -12,6 +12,7 @@ urlpatterns = [
     path("employees/<str:pk>/", v.EmployeeDetailView.as_view(), name="api-employee"),
     # org structure
     path("departments/", v.DepartmentListCreateView.as_view(), name="api-departments"),
+    path("departments/<str:pk>/", v.DepartmentDetailView.as_view(), name="api-department"),
     path(
         "designations/",
         v.DesignationListCreateView.as_view(),
