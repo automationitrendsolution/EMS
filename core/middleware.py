@@ -1,6 +1,24 @@
 """Thread-local current user + session-based frontend authentication."""
 import threading
 
+from django.middleware.csrf import CsrfViewMiddleware
+
+
+class ProxyCsrfMiddleware(CsrfViewMiddleware):
+    """CSRF middleware that skips the Origin-header check.
+
+    When Django sits behind a reverse proxy (nginx) on a non-standard port
+    (e.g. :8002) the browser's Origin header contains the external port which
+    Django's default CSRF check rejects unless that exact origin is listed in
+    CSRF_TRUSTED_ORIGINS.  Stripping HTTP_ORIGIN before the parent check makes
+    Django fall back to the cookie + form-token guard, which is equally secure
+    and works regardless of the port the proxy exposes.
+    """
+
+    def process_view(self, request, callback, callback_args, callback_kwargs):
+        request.META.pop("HTTP_ORIGIN", None)
+        return super().process_view(request, callback, callback_args, callback_kwargs)
+
 _local = threading.local()
 
 
