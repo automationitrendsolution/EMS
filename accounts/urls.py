@@ -11,6 +11,7 @@ urlpatterns = [
     path("departments/<str:pk>/edit/", views.department_edit, name="department-edit"),
     path("employees/", views.employees_page, name="employees"),
     path("employees/create/", views.employee_create, name="employee-create"),
+    path("employees/<str:pk>/edit/", views.employee_edit, name="employee-edit"),
     path(
         "employees/<str:pk>/performance/",
         views.employee_performance_page,

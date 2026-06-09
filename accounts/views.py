@@ -179,6 +179,48 @@ def employee_create(request):
     return redirect("/employees/")
 
 
+@login_required
+@roles_required(*MANAGEMENT_ROLES)
+def employee_edit(request, pk):
+    if request.method != "POST":
+        return redirect("/employees/")
+    employee = User.objects(id=pk).first()
+    if not employee:
+        messages.error(request, "Employee not found.")
+        return redirect("/employees/")
+    full_name = (request.POST.get("full_name") or "").strip()
+    email = (request.POST.get("email") or "").lower().strip()
+    if not full_name or not email:
+        messages.error(request, "Name and email are required.")
+        return redirect("/employees/")
+    existing = User.objects(email=email).first()
+    if existing and str(existing.id) != pk:
+        messages.error(request, "That email is already used by another employee.")
+        return redirect("/employees/")
+    employee.full_name = full_name
+    employee.email = email
+    employee.phone = (request.POST.get("phone") or "").strip() or None
+    employee.role = request.POST.get("role") or employee.role
+    employee.department = (
+        Department.objects(id=request.POST.get("department_id")).first()
+        if request.POST.get("department_id")
+        else None
+    )
+    employee.designation = (
+        Designation.objects(id=request.POST.get("designation_id")).first()
+        if request.POST.get("designation_id")
+        else None
+    )
+    employee.team = (
+        Team.objects(id=request.POST.get("team_id")).first()
+        if request.POST.get("team_id")
+        else None
+    )
+    employee.save()
+    messages.success(request, f"Employee '{full_name}' updated.")
+    return redirect("/employees/")
+
+
 # ---------------------------------------------------------------------------
 # Performance: KRA (Key Result Area) / KPI (Key Performance Indicator)
 # ---------------------------------------------------------------------------
