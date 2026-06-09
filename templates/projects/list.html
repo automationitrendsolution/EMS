@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load time_filters %}
 {% block title %}Projects · iTrendTASKS{% endblock %}
 {% block heading %}Projects{% endblock %}
 {% block breadcrumb %}<li class="breadcrumb-item active" aria-current="page">Projects</li>{% endblock %}
@@ -33,7 +34,7 @@
       <div class="progress progress-thin mb-2"><div class="progress-bar" style="width:{{ p.stats.progress }}%"></div></div>
       <div class="d-flex justify-content-between small text-muted mb-3">
         <span title="Estimated hours"><i class="bi bi-hourglass"></i> Est: {{ p.obj.estimated_hours|floatformat:"-2" }}h</span>
-        <span title="Actual hours"><i class="bi bi-clock-history"></i> Actual: {{ p.obj.actual_hours|floatformat:"-2" }}h</span>
+        <span title="Actual hours"><i class="bi bi-clock-history"></i> Actual: {{ p.obj.actual_hours|hours_to_hms }}</span>
       </div>
       <div class="d-flex justify-content-between align-items-center">
         <small class="text-muted"><i class="bi bi-person"></i> {{ p.obj.manager.full_name|default:'No manager' }}</small>

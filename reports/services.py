@@ -13,6 +13,20 @@ def _fmt(dt):
     return dt.strftime("%Y-%m-%d") if dt else ""
 
 
+def _hms(hours):
+    """Convert float hours to HH:MM:SS string."""
+    try:
+        total_secs = int(float(hours or 0) * 3600)
+    except (TypeError, ValueError):
+        return "00:00:00"
+    neg = total_secs < 0
+    total_secs = abs(total_secs)
+    h, rem = divmod(total_secs, 3600)
+    m, s = divmod(rem, 60)
+    result = f"{h:02d}:{m:02d}:{s:02d}"
+    return f"-{result}" if neg else result
+
+
 def task_report(filters=None):
     filters = filters or {}
     qs = Task.objects()
@@ -29,7 +43,7 @@ def task_report(filters=None):
             t.project.name if t.project else "",
             t.assigned_to.full_name if t.assigned_to else "Unassigned",
             STATUS_LABELS.get(t.status, t.status), t.priority,
-            t.progress, _fmt(t.due_date), t.estimated_hours, t.actual_hours,
+            t.progress, _fmt(t.due_date), t.estimated_hours, _hms(t.actual_hours),
         ])
     return "Task Report", columns, rows
 
@@ -50,7 +64,7 @@ def project_report():
             p.name, p.status, p.priority,
             p.manager.full_name if p.manager else "",
             total, done, round(done / total * 100) if total else 0,
-            est, actual, round(est - actual, 2),
+            est, _hms(actual), _hms(est - actual),
             _fmt(p.start_date), _fmt(p.end_date),
         ])
     return "Project Report", columns, rows
@@ -66,7 +80,7 @@ def employee_report():
         secs = sum(t.total_seconds for t in TimeLog.objects(employee=u))
         rows.append([
             u.employee_id, u.full_name, u.role_label, open_t, done_t,
-            round(secs / 3600, 2),
+            _hms(secs / 3600),
         ])
     return "Employee Report", columns, rows
 
@@ -77,10 +91,10 @@ def productivity_report():
     for u in User.objects(status="active").order_by("full_name"):
         done_t = Task.objects(assigned_to=u, status="completed").count()
         secs = sum(t.total_seconds for t in TimeLog.objects(employee=u))
-        hours = round(secs / 3600, 2)
+        hours = secs / 3600
         rows.append([
-            u.full_name, done_t, hours,
-            round(hours / done_t, 2) if done_t else 0,
+            u.full_name, done_t, _hms(hours),
+            _hms(hours / done_t) if done_t else "00:00:00",
         ])
     rows.sort(key=lambda r: r[1], reverse=True)
     return "Productivity Report", columns, rows

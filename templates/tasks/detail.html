@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load time_filters %}
 {% block title %}{{ task.task_id }} · {{ task.title }}{% endblock %}
 {% block heading %}{{ task.task_id }}{% endblock %}
 {% block breadcrumb %}
@@ -117,7 +118,7 @@
         <button class="btn btn-sm btn-info" data-timer="resume" title="Resume"><i class="bi bi-skip-forward-fill"></i></button>
         <button class="btn btn-sm btn-danger" data-timer="stop" title="Stop"><i class="bi bi-stop-fill"></i></button>
       </div>
-      <div class="small text-muted mt-3 text-center">Est: {{ task.estimated_hours }}h · Actual: <span id="actualHours">{{ task.actual_hours }}</span>h · Total tracked: {{ total_hours }}h</div>
+      <div class="small text-muted mt-3 text-center">Est: {{ task.estimated_hours }}h · Actual: <span id="actualHours">{{ task.actual_hours|hours_to_hms }}</span> · Total tracked: {{ total_hours|hours_to_hms }}</div>
     </div></div>
 
     <!-- Attachments (Module 7) -->
@@ -310,7 +311,7 @@
       running = r.is_running;
       if (running) startTicking(); else stopTicking();
       if (action === "stop") {
-        document.getElementById("actualHours").textContent = (r.total_seconds / 3600).toFixed(2);
+        document.getElementById("actualHours").textContent = fmt(r.total_seconds);
       }
       paint();
       toast("Timer " + action);
