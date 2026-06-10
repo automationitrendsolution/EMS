@@ -11,19 +11,23 @@ from tasks.models import Task
 
 
 def project_stats(project):
+    from tasks.models import TimeLog
     tasks = Task.objects(project=project)
     total = tasks.count()
     completed = tasks.filter(status="completed").count()
-    # Actual hours are auto-calculated from the project's tasks.
-    actual = round(tasks.sum("actual_hours") or 0, 2)
     estimated = project.estimated_hours or 0
+    actual_secs = sum(
+        sum(tl.total_seconds for tl in TimeLog.objects(task=t))
+        for t in tasks
+    )
+    actual = actual_secs / 3600
     return {
         "total_tasks": total,
         "completed_tasks": completed,
         "progress": round(completed / total * 100) if total else 0,
         "estimated_hours": estimated,
         "actual_hours": actual,
-        "remaining_hours": round(estimated - actual, 2),
+        "remaining_hours": estimated - actual,
     }
 
 

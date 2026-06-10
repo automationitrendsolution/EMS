@@ -91,12 +91,17 @@ class TimeLog(Document):
 
     @property
     def total_seconds(self):
-        total = self.accumulated_seconds or 0
+        # Stopped: timer_stop() already folded the final running segment into
+        # accumulated_seconds, so don't add (end - start) again.
+        if self.end_time:
+            return self.accumulated_seconds or 0
+        # Running: previous segments + elapsed time in the current segment.
         if self.is_running and self.start_time:
-            total += int((utcnow() - self.start_time).total_seconds())
-        elif self.end_time and self.start_time:
-            total += int((self.end_time - self.start_time).total_seconds())
-        return total
+            return (self.accumulated_seconds or 0) + int(
+                (utcnow() - self.start_time).total_seconds()
+            )
+        # Paused (no end_time, not running): accumulated has all work so far.
+        return self.accumulated_seconds or 0
 
 
 # ---------------------------------------------------------------------------

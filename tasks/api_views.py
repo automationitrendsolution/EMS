@@ -181,8 +181,18 @@ class TaskDetailView(APIView):
             )
         if "status" in d and d["status"] != prev_status:
             task.status = d["status"]
-            if d["status"] == "completed":
+            if d["status"] in ("completed", "rejected"):
                 task.completed_at = utcnow()
+                # Auto-stop any running timers so actual_hours stays accurate.
+                for log in TimeLog.objects(task=task, end_time=None):
+                    if log.is_running:
+                        log.accumulated_seconds += int((utcnow() - log.start_time).total_seconds())
+                        log.is_running = False
+                    log.end_time = utcnow()
+                    log.save()
+                task.actual_hours = round(
+                    sum(t.total_seconds for t in TimeLog.objects(task=task)) / 3600, 2
+                )
             log_activity(
                 actor=request.user,
                 task=task,
@@ -401,8 +411,17 @@ def move_task(request, pk):
     prev = task.status
     task.status = s.validated_data["status"]
     task.board_order = s.validated_data.get("board_order", 0)
-    if task.status == "completed":
+    if task.status in ("completed", "rejected"):
         task.completed_at = utcnow()
+        for log in TimeLog.objects(task=task, end_time=None):
+            if log.is_running:
+                log.accumulated_seconds += int((utcnow() - log.start_time).total_seconds())
+                log.is_running = False
+            log.end_time = utcnow()
+            log.save()
+        task.actual_hours = round(
+            sum(t.total_seconds for t in TimeLog.objects(task=task)) / 3600, 2
+        )
     task.save()
     if prev != task.status:
         log_activity(

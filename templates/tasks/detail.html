@@ -118,7 +118,7 @@
         <button class="btn btn-sm btn-info" data-timer="resume" title="Resume"><i class="bi bi-skip-forward-fill"></i></button>
         <button class="btn btn-sm btn-danger" data-timer="stop" title="Stop"><i class="bi bi-stop-fill"></i></button>
       </div>
-      <div class="small text-muted mt-3 text-center">Est: {{ task.estimated_hours }}h · Actual: <span id="actualHours">{{ task.actual_hours|hours_to_hms }}</span> · Total tracked: {{ total_hours|hours_to_hms }}</div>
+      <div class="small text-muted mt-3 text-center">Est: {{ task.estimated_hours }}h · Actual: <span id="actualHours">{{ total_secs|secs_to_hms }}</span> · Total tracked: {{ total_secs|secs_to_hms }}</div>
     </div></div>
 
     <!-- Attachments (Module 7) -->

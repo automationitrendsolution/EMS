@@ -88,7 +88,7 @@ def task_detail(request, pk):
             "comments": comments,
             "activity": activity,
             "timelogs": timelogs,
-            "total_hours": round(total_secs / 3600, 2),
+            "total_secs": total_secs,
             "active_timer": active_timer,
             "can_delete_task": can_delete_task,
             "statuses": TASK_STATUSES,

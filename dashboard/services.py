@@ -22,7 +22,7 @@ def _task_scope(user):
 def _spent_hours(task):
     """Total tracked hours for a task, summed across all of its time logs."""
     secs = sum(tl.total_seconds for tl in TimeLog.objects(task=task))
-    return round(secs / 3600, 2)
+    return secs / 3600
 
 
 def build_dashboard(user):
@@ -53,7 +53,7 @@ def build_dashboard(user):
     for t in tasks.order_by("-created_at"):
         spent = _spent_hours(t)
         total_spent += spent
-        hours_by_status[t.status] = round(hours_by_status[t.status] + spent, 2)
+        hours_by_status[t.status] += spent
         task_rows.append(
             {
                 "id": str(t.id),
@@ -77,7 +77,7 @@ def build_dashboard(user):
             "status": s,
             "label": STATUS_LABELS.get(s, s),
             "count": status_counts.get(s, 0),
-            "hours": round(hours_by_status.get(s, 0.0), 2),
+            "hours": hours_by_status.get(s, 0.0),
         }
         for s in TASK_STATUSES
     ]
@@ -104,6 +104,6 @@ def build_dashboard(user):
         "cards": cards,
         "tasks": task_rows,
         "status_hours": status_hours,
-        "total_spent_hours": round(total_spent, 2),
+        "total_spent_hours": total_spent,
         "employee_workload": workload[:15],
     }

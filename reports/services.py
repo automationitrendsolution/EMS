@@ -99,13 +99,14 @@ def task_report(filters=None):
                "Progress %", "Due Date", "Created", "Est. Hrs", "Actual Hrs"]
     rows = []
     for t in qs.order_by("-created_at"):
+        actual_secs = sum(tl.total_seconds for tl in TimeLog.objects(task=t))
         rows.append([
             t.task_id, t.title,
             t.project.name if t.project else "",
             t.assigned_to.full_name if t.assigned_to else "Unassigned",
             STATUS_LABELS.get(t.status, t.status), t.priority,
             t.progress, _fmt(t.due_date), _fmt(t.created_at),
-            t.estimated_hours, _hms(t.actual_hours),
+            t.estimated_hours, _hms(actual_secs / 3600),
         ])
     return "Task Report", columns, rows
 
@@ -148,12 +149,16 @@ def project_report(filters=None):
         total = tasks.count()
         done = tasks.filter(status="completed").count()
         est = p.estimated_hours or 0
-        actual = round(tasks.sum("actual_hours") or 0, 2)
+        actual_secs = sum(
+            sum(tl.total_seconds for tl in TimeLog.objects(task=t))
+            for t in tasks
+        )
+        actual_hours = actual_secs / 3600
         rows.append([
             p.name, p.status, p.priority,
             p.manager.full_name if p.manager else "",
             total, done, round(done / total * 100) if total else 0,
-            est, _hms(actual), _hms(est - actual),
+            est, _hms(actual_hours), _hms(est - actual_hours),
             _fmt(p.start_date), _fmt(p.end_date),
         ])
     return "Project Report", columns, rows
