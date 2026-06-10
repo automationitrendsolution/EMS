@@ -216,6 +216,12 @@ def employee_edit(request, pk):
         if request.POST.get("team_id")
         else None
     )
+    new_password = (request.POST.get("new_password") or "").strip()
+    if new_password:
+        if len(new_password) < 6:
+            messages.error(request, "New password must be at least 6 characters.")
+            return redirect("/employees/")
+        employee.set_password(new_password)
     employee.save()
     messages.success(request, f"Employee '{full_name}' updated.")
     return redirect("/employees/")

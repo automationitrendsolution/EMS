@@ -1,5 +1,9 @@
 """Module 12: Report builders. Each returns (title, columns, rows)."""
-from accounts.models import PerformanceGoal, User
+import datetime
+
+from mongoengine.queryset.visitor import Q
+
+from accounts.models import Department, PerformanceGoal, User
 from core.constants import (
     PERF_KIND_LABELS,
     PERF_STATUS_LABELS,
@@ -27,15 +31,72 @@ def _hms(hours):
     return f"-{result}" if neg else result
 
 
+def _parse_date(val):
+    """Parse YYYY-MM-DD string to timezone-aware datetime (start of day UTC)."""
+    if not val:
+        return None
+    try:
+        d = datetime.datetime.strptime(val, "%Y-%m-%d")
+        return d.replace(tzinfo=datetime.timezone.utc)
+    except ValueError:
+        return None
+
+
+def _parse_date_end(val):
+    """Parse YYYY-MM-DD string to end-of-day UTC datetime."""
+    if not val:
+        return None
+    try:
+        d = datetime.datetime.strptime(val, "%Y-%m-%d")
+        return d.replace(hour=23, minute=59, second=59, tzinfo=datetime.timezone.utc)
+    except ValueError:
+        return None
+
+
 def task_report(filters=None):
     filters = filters or {}
     qs = Task.objects()
+
+    # Text search across title and task_id
+    if filters.get("search"):
+        s = filters["search"]
+        qs = qs.filter(Q(title__icontains=s) | Q(task_id__icontains=s))
+
     if filters.get("project_id"):
         qs = qs.filter(project=filters["project_id"])
     if filters.get("status"):
         qs = qs.filter(status=filters["status"])
+    if filters.get("assigned_to"):
+        qs = qs.filter(assigned_to=filters["assigned_to"])
+    if filters.get("priority"):
+        qs = qs.filter(priority=filters["priority"])
+
+    due_from = _parse_date(filters.get("due_date_from"))
+    due_to = _parse_date_end(filters.get("due_date_to"))
+    if due_from:
+        qs = qs.filter(due_date__gte=due_from)
+    if due_to:
+        qs = qs.filter(due_date__lte=due_to)
+
+    created_from = _parse_date(filters.get("created_from"))
+    created_to = _parse_date_end(filters.get("created_to"))
+    if created_from:
+        qs = qs.filter(created_at__gte=created_from)
+    if created_to:
+        qs = qs.filter(created_at__lte=created_to)
+
+    try:
+        prog_min = int(filters["progress_min"]) if filters.get("progress_min") else None
+        prog_max = int(filters["progress_max"]) if filters.get("progress_max") else None
+    except (ValueError, TypeError):
+        prog_min = prog_max = None
+    if prog_min is not None:
+        qs = qs.filter(progress__gte=prog_min)
+    if prog_max is not None:
+        qs = qs.filter(progress__lte=prog_max)
+
     columns = ["Task ID", "Title", "Project", "Assignee", "Status", "Priority",
-               "Progress %", "Due Date", "Est. Hrs", "Actual Hrs"]
+               "Progress %", "Due Date", "Created", "Est. Hrs", "Actual Hrs"]
     rows = []
     for t in qs.order_by("-created_at"):
         rows.append([
@@ -43,22 +104,50 @@ def task_report(filters=None):
             t.project.name if t.project else "",
             t.assigned_to.full_name if t.assigned_to else "Unassigned",
             STATUS_LABELS.get(t.status, t.status), t.priority,
-            t.progress, _fmt(t.due_date), t.estimated_hours, _hms(t.actual_hours),
+            t.progress, _fmt(t.due_date), _fmt(t.created_at),
+            t.estimated_hours, _hms(t.actual_hours),
         ])
     return "Task Report", columns, rows
 
 
-def project_report():
+def project_report(filters=None):
+    filters = filters or {}
+    qs = Project.objects()
+
+    # Text search by project name
+    if filters.get("search"):
+        qs = qs.filter(name__icontains=filters["search"])
+
+    if filters.get("status"):
+        qs = qs.filter(status=filters["status"])
+    if filters.get("priority"):
+        qs = qs.filter(priority=filters["priority"])
+    if filters.get("manager_id"):
+        qs = qs.filter(manager=filters["manager_id"])
+
+    start_from = _parse_date(filters.get("start_date_from"))
+    start_to = _parse_date_end(filters.get("start_date_to"))
+    if start_from:
+        qs = qs.filter(start_date__gte=start_from)
+    if start_to:
+        qs = qs.filter(start_date__lte=start_to)
+
+    end_from = _parse_date(filters.get("end_date_from"))
+    end_to = _parse_date_end(filters.get("end_date_to"))
+    if end_from:
+        qs = qs.filter(end_date__gte=end_from)
+    if end_to:
+        qs = qs.filter(end_date__lte=end_to)
+
     columns = ["Project", "Status", "Priority", "Manager", "Total Tasks",
                "Completed", "Progress %", "Est. Hrs", "Actual Hrs",
                "Remaining Hrs", "Start", "End"]
     rows = []
-    for p in Project.objects().order_by("-created_at"):
+    for p in qs.order_by("-created_at"):
         tasks = Task.objects(project=p)
         total = tasks.count()
         done = tasks.filter(status="completed").count()
         est = p.estimated_hours or 0
-        # Actual hours are auto-calculated from the project's task time logs.
         actual = round(tasks.sum("actual_hours") or 0, 2)
         rows.append([
             p.name, p.status, p.priority,
@@ -70,51 +159,97 @@ def project_report():
     return "Project Report", columns, rows
 
 
-def employee_report():
-    columns = ["Employee ID", "Name", "Role", "Open Tasks", "Completed Tasks",
-               "Logged Hours"]
+def employee_report(filters=None):
+    filters = filters or {}
+    qs = User.objects()
+
+    # Text search by name or employee ID
+    if filters.get("search"):
+        s = filters["search"]
+        qs = qs.filter(Q(full_name__icontains=s) | Q(employee_id__icontains=s))
+
+    if filters.get("status"):
+        qs = qs.filter(status=filters["status"])
+    else:
+        qs = qs.filter(status="active")
+
+    if filters.get("role"):
+        qs = qs.filter(role=filters["role"])
+    if filters.get("department_id"):
+        qs = qs.filter(department=filters["department_id"])
+
+    columns = ["Employee ID", "Name", "Department", "Role", "Status",
+               "Open Tasks", "Completed Tasks", "Logged Hours"]
     rows = []
-    for u in User.objects(status="active").order_by("full_name"):
+    for u in qs.order_by("full_name"):
         open_t = Task.objects(assigned_to=u, status__nin=["completed", "rejected"]).count()
         done_t = Task.objects(assigned_to=u, status="completed").count()
         secs = sum(t.total_seconds for t in TimeLog.objects(employee=u))
         rows.append([
-            u.employee_id, u.full_name, u.role_label, open_t, done_t,
+            u.employee_id, u.full_name,
+            u.department.name if u.department else "",
+            u.role_label, u.status,
+            open_t, done_t,
             _hms(secs / 3600),
         ])
     return "Employee Report", columns, rows
 
 
-def productivity_report():
-    columns = ["Employee", "Completed Tasks", "Logged Hours", "Avg Hrs/Task"]
+def productivity_report(filters=None):
+    filters = filters or {}
+    qs = User.objects(status="active")
+
+    # Text search by name
+    if filters.get("search"):
+        qs = qs.filter(full_name__icontains=filters["search"])
+
+    if filters.get("role"):
+        qs = qs.filter(role=filters["role"])
+    if filters.get("department_id"):
+        qs = qs.filter(department=filters["department_id"])
+
+    columns = ["Employee", "Department", "Completed Tasks", "Logged Hours", "Avg Hrs/Task"]
     rows = []
-    for u in User.objects(status="active").order_by("full_name"):
+    for u in qs.order_by("full_name"):
         done_t = Task.objects(assigned_to=u, status="completed").count()
         secs = sum(t.total_seconds for t in TimeLog.objects(employee=u))
         hours = secs / 3600
         rows.append([
-            u.full_name, done_t, _hms(hours),
+            u.full_name,
+            u.department.name if u.department else "",
+            done_t, _hms(hours),
             _hms(hours / done_t) if done_t else "00:00:00",
         ])
-    rows.sort(key=lambda r: r[1], reverse=True)
+    rows.sort(key=lambda r: r[2], reverse=True)
     return "Productivity Report", columns, rows
 
 
 def performance_report(filters=None):
-    """All employees' KRA / KPI goals. Optional filters: employee_id, kind,
-    status."""
+    """All employees' KRA / KPI goals with advanced filters."""
     filters = filters or {}
     qs = PerformanceGoal.objects()
+
+    # Text search by goal title
+    if filters.get("search"):
+        qs = qs.filter(title__icontains=filters["search"])
+
     if filters.get("employee_id"):
         qs = qs.filter(employee=filters["employee_id"])
     if filters.get("kind"):
         qs = qs.filter(kind=filters["kind"])
     if filters.get("status"):
         qs = qs.filter(status=filters["status"])
+    if filters.get("period"):
+        qs = qs.filter(period__icontains=filters["period"])
+
+    # Department filter: fetch matching employee IDs first
+    if filters.get("department_id"):
+        emp_ids = [u.id for u in User.objects(department=filters["department_id"])]
+        qs = qs.filter(employee__in=emp_ids)
+
     columns = ["Employee ID", "Employee", "Department", "Type", "Title",
                "Target", "Weightage %", "Period", "Status", "Score"]
     rows = []
-    # Group by employee name, then KRA before KPI, for a readable layout.
     for g in qs.order_by("kind"):
         emp = g.employee
         rows.append([
@@ -141,14 +276,11 @@ REPORTS = {
     "performance": performance_report,
 }
 
-# Reports that accept a ``filters`` argument.
-FILTERED_REPORTS = {"task", "performance"}
+FILTERED_REPORTS = set(REPORTS.keys())
 
 
 def build(report_type, filters=None):
     fn = REPORTS.get(report_type)
     if not fn:
         raise ValueError(f"Unknown report type: {report_type}")
-    if report_type in FILTERED_REPORTS:
-        return fn(filters)
-    return fn()
+    return fn(filters)

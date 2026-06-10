@@ -3,53 +3,458 @@
 {% block heading %}Reports{% endblock %}
 {% block breadcrumb %}<li class="breadcrumb-item active" aria-current="page">Reports</li>{% endblock %}
 {% block content %}
+
+<!-- Toolbar -->
 <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
-  <select class="form-select" id="reportType" style="max-width:240px">
+  <select class="form-select" id="reportType" style="max-width:260px">
     <option value="task">Task Report</option>
     <option value="project">Project Report</option>
     <option value="employee">Employee Report</option>
     <option value="productivity">Productivity Report</option>
     <option value="performance">Performance (KRA/KPI) Report</option>
   </select>
-  <button class="btn btn-primary" id="runReport"><i class="bi bi-play"></i> Generate</button>
+  <button class="btn btn-primary" id="runReport"><i class="bi bi-play-fill"></i> Generate</button>
+  <button class="btn btn-outline-secondary" id="resetFilters" title="Clear all filters"><i class="bi bi-x-circle"></i> Reset</button>
   <div class="ms-auto btn-group">
-    <a class="btn btn-outline-success export" data-fmt="excel"><i class="bi bi-file-excel"></i> Excel</a>
-    <a class="btn btn-outline-danger export" data-fmt="pdf"><i class="bi bi-file-pdf"></i> PDF</a>
-    <a class="btn btn-outline-secondary export" data-fmt="csv"><i class="bi bi-filetype-csv"></i> CSV</a>
+    <button class="btn btn-outline-success export" data-fmt="excel"><i class="bi bi-file-excel"></i> Excel</button>
+    <button class="btn btn-outline-danger export" data-fmt="pdf"><i class="bi bi-file-pdf"></i> PDF</button>
+    <button class="btn btn-outline-secondary export" data-fmt="csv"><i class="bi bi-filetype-csv"></i> CSV</button>
   </div>
 </div>
 
-<div class="card stat-card"><div class="card-body">
-  <h6 id="reportTitle" class="mb-3">Task Report</h6>
-  <div class="table-responsive">
-    <table class="table table-sm table-hover" id="reportTable">
-      <thead></thead><tbody><tr><td class="text-muted">Click Generate to load the report.</td></tr></tbody>
-    </table>
+<!-- Advanced Filter Panel -->
+<div class="card stat-card mb-3" id="filterCard">
+  <div class="card-header py-2 d-flex justify-content-between align-items-center" style="cursor:pointer" id="filterToggle">
+    <span class="fw-semibold small"><i class="bi bi-funnel"></i> Advanced Filters</span>
+    <i class="bi bi-chevron-down" id="filterChevron"></i>
   </div>
-</div></div>
+  <div class="card-body" id="filterBody">
+
+    <!-- ── Task Report Filters ── -->
+    <div class="filter-panel" data-report="task">
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Task Name</label>
+          <select class="form-select form-select-sm" name="search">
+            <option value="">All Tasks</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Project</label>
+          <select class="form-select form-select-sm" name="project_id">
+            <option value="">All Projects</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Status</label>
+          <select class="form-select form-select-sm" name="status">
+            <option value="">All Statuses</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Priority</label>
+          <select class="form-select form-select-sm" name="priority">
+            <option value="">All Priorities</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Assignee</label>
+          <select class="form-select form-select-sm" name="assigned_to">
+            <option value="">All Employees</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Progress %</label>
+          <div class="input-group input-group-sm">
+            <input type="number" class="form-control" name="progress_min" placeholder="Min" min="0" max="100">
+            <span class="input-group-text">–</span>
+            <input type="number" class="form-control" name="progress_max" placeholder="Max" min="0" max="100">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Due Date</label>
+          <div class="input-group input-group-sm">
+            <input type="date" class="form-control" name="due_date_from">
+            <span class="input-group-text">–</span>
+            <input type="date" class="form-control" name="due_date_to">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Created Date</label>
+          <div class="input-group input-group-sm">
+            <input type="date" class="form-control" name="created_from">
+            <span class="input-group-text">–</span>
+            <input type="date" class="form-control" name="created_to">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Project Report Filters ── -->
+    <div class="filter-panel d-none" data-report="project">
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Project Name</label>
+          <select class="form-select form-select-sm" name="search">
+            <option value="">All Projects</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Status</label>
+          <select class="form-select form-select-sm" name="status">
+            <option value="">All Statuses</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Priority</label>
+          <select class="form-select form-select-sm" name="priority">
+            <option value="">All Priorities</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Manager</label>
+          <select class="form-select form-select-sm" name="manager_id">
+            <option value="">All Managers</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Start Date</label>
+          <div class="input-group input-group-sm">
+            <input type="date" class="form-control" name="start_date_from">
+            <span class="input-group-text">–</span>
+            <input type="date" class="form-control" name="start_date_to">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">End Date</label>
+          <div class="input-group input-group-sm">
+            <input type="date" class="form-control" name="end_date_from">
+            <span class="input-group-text">–</span>
+            <input type="date" class="form-control" name="end_date_to">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Employee Report Filters ── -->
+    <div class="filter-panel d-none" data-report="employee">
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Employee Name</label>
+          <select class="form-select form-select-sm" name="search">
+            <option value="">All Employees</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Department</label>
+          <select class="form-select form-select-sm" name="department_id">
+            <option value="">All Departments</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Role</label>
+          <select class="form-select form-select-sm" name="role">
+            <option value="">All Roles</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Status</label>
+          <select class="form-select form-select-sm" name="status">
+            <option value="">All Statuses</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Productivity Report Filters ── -->
+    <div class="filter-panel d-none" data-report="productivity">
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Employee Name</label>
+          <select class="form-select form-select-sm" name="search">
+            <option value="">All Employees</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Department</label>
+          <select class="form-select form-select-sm" name="department_id">
+            <option value="">All Departments</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Role</label>
+          <select class="form-select form-select-sm" name="role">
+            <option value="">All Roles</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Performance Report Filters ── -->
+    <div class="filter-panel d-none" data-report="performance">
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Goal Title</label>
+          <select class="form-select form-select-sm" name="search">
+            <option value="">All Goals</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Employee</label>
+          <select class="form-select form-select-sm" name="employee_id">
+            <option value="">All Employees</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Department</label>
+          <select class="form-select form-select-sm" name="department_id">
+            <option value="">All Departments</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Type</label>
+          <select class="form-select form-select-sm" name="kind">
+            <option value="">All Types</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Status</label>
+          <select class="form-select form-select-sm" name="status">
+            <option value="">All Statuses</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Period</label>
+          <select class="form-select form-select-sm" name="period">
+            <option value="">All Periods</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /card-body -->
+</div>
+
+<!-- Active Filter Badges -->
+<div id="activeBadges" class="mb-2 d-flex flex-wrap gap-1"></div>
+
+<!-- Report Table -->
+<div class="card stat-card">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h6 id="reportTitle" class="mb-0">Select a report type and click Generate.</h6>
+      <small id="rowCount" class="text-muted"></small>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover" id="reportTable">
+        <thead></thead>
+        <tbody><tr><td class="text-muted">Click Generate to load the report.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-  async function run() {
-    const type = document.getElementById("reportType").value;
-    try {
-      const r = await API.get(`/reports/${type}/`);
-      document.getElementById("reportTitle").textContent = r.title;
-      document.querySelector("#reportTable thead").innerHTML =
-        "<tr>" + r.columns.map(c => `<th>${c}</th>`).join("") + "</tr>";
-      document.querySelector("#reportTable tbody").innerHTML =
-        r.rows.length
-          ? r.rows.map(row => "<tr>" + row.map(c => `<td>${c}</td>`).join("") + "</tr>").join("")
-          : `<tr><td colspan="${r.columns.length}" class="text-muted">No data.</td></tr>`;
-    } catch (e) { toast(e.message, "danger"); }
+// ── State ──────────────────────────────────────────────────────────────────
+let OPTIONS = {};
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    OPTIONS = await API.get("/reports/filter-options/");
+    populateAllPanels();
+  } catch (e) {
+    console.warn("Could not load filter options:", e.message);
   }
-  document.getElementById("runReport").addEventListener("click", run);
-  document.querySelectorAll(".export").forEach(b => b.addEventListener("click", () => {
-    const type = document.getElementById("reportType").value;
-    // Token in query so the browser download carries auth.
-    window.open(`/api/v1/reports/${type}/export/${b.dataset.fmt}/`, "_blank");
-  }));
+  switchPanel(document.getElementById("reportType").value);
   run();
+})();
+
+// ── Populate dropdowns ─────────────────────────────────────────────────────
+function opts(items, valueKey, labelKey) {
+  return items.map(i => `<option value="${escAttr(i[valueKey])}">${escHtml(i[labelKey])}</option>`).join("");
+}
+function escAttr(s) {
+  return String(s ?? "").replace(/"/g, "&quot;");
+}
+function escHtml(s) {
+  return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function populateAllPanels() {
+  // ── Task panel ──
+  const tp = panel("task");
+  sel(tp, "search").innerHTML      = '<option value="">All Tasks</option>'     + opts(OPTIONS.tasks,         "value", "label");
+  sel(tp, "project_id").innerHTML  = '<option value="">All Projects</option>'  + opts(OPTIONS.projects,      "id",    "name");
+  sel(tp, "status").innerHTML      = '<option value="">All Statuses</option>'  + opts(OPTIONS.task_statuses, "value", "label");
+  sel(tp, "priority").innerHTML    = '<option value="">All Priorities</option>'+ opts(OPTIONS.priorities,    "value", "label");
+  sel(tp, "assigned_to").innerHTML = '<option value="">All Employees</option>' + opts(OPTIONS.employees,     "id",    "name");
+
+  // ── Project panel ──
+  const pp = panel("project");
+  sel(pp, "search").innerHTML     = '<option value="">All Projects</option>'  + opts(OPTIONS.project_names,    "value", "label");
+  sel(pp, "status").innerHTML     = '<option value="">All Statuses</option>'  + opts(OPTIONS.project_statuses, "value", "label");
+  sel(pp, "priority").innerHTML   = '<option value="">All Priorities</option>'+ opts(OPTIONS.priorities,       "value", "label");
+  sel(pp, "manager_id").innerHTML = '<option value="">All Managers</option>'  + opts(OPTIONS.managers,         "id",    "name");
+
+  // ── Employee panel ──
+  const ep = panel("employee");
+  sel(ep, "search").innerHTML        = '<option value="">All Employees</option>'  + opts(OPTIONS.employee_names, "value", "label");
+  sel(ep, "department_id").innerHTML = '<option value="">All Departments</option>'+ opts(OPTIONS.departments,    "id",    "name");
+  sel(ep, "role").innerHTML          = '<option value="">All Roles</option>'      + opts(OPTIONS.roles,          "value", "label");
+  sel(ep, "status").innerHTML        = '<option value="">All Statuses</option>'   + opts(OPTIONS.employee_statuses, "value", "label");
+
+  // ── Productivity panel ──
+  const prd = panel("productivity");
+  sel(prd, "search").innerHTML        = '<option value="">All Employees</option>'  + opts(OPTIONS.employee_names, "value", "label");
+  sel(prd, "department_id").innerHTML = '<option value="">All Departments</option>'+ opts(OPTIONS.departments,    "id",    "name");
+  sel(prd, "role").innerHTML          = '<option value="">All Roles</option>'      + opts(OPTIONS.roles,          "value", "label");
+
+  // ── Performance panel ──
+  const perf = panel("performance");
+  sel(perf, "search").innerHTML        = '<option value="">All Goals</option>'       + opts(OPTIONS.goal_titles,    "value", "label");
+  sel(perf, "employee_id").innerHTML   = '<option value="">All Employees</option>'   + opts(OPTIONS.employees,      "id",    "name");
+  sel(perf, "department_id").innerHTML = '<option value="">All Departments</option>' + opts(OPTIONS.departments,    "id",    "name");
+  sel(perf, "kind").innerHTML          = '<option value="">All Types</option>'       + opts(OPTIONS.perf_kinds,     "value", "label");
+  sel(perf, "status").innerHTML        = '<option value="">All Statuses</option>'    + opts(OPTIONS.perf_statuses,  "value", "label");
+  sel(perf, "period").innerHTML        = '<option value="">All Periods</option>'     + opts(OPTIONS.periods,        "value", "label");
+}
+
+function panel(type) {
+  return document.querySelector(`.filter-panel[data-report="${type}"]`);
+}
+function sel(p, name) {
+  return p.querySelector(`[name="${name}"]`);
+}
+
+// ── Switch active filter panel ─────────────────────────────────────────────
+function switchPanel(type) {
+  document.querySelectorAll(".filter-panel").forEach(p => p.classList.add("d-none"));
+  const active = panel(type);
+  if (active) active.classList.remove("d-none");
+}
+
+document.getElementById("reportType").addEventListener("change", function () {
+  switchPanel(this.value);
+  renderBadges();
+});
+
+// ── Collect filters from active panel ─────────────────────────────────────
+function collectFilters() {
+  const type = document.getElementById("reportType").value;
+  const p = panel(type);
+  if (!p) return {};
+  const params = {};
+  p.querySelectorAll("input, select").forEach(el => {
+    if (el.name && el.value !== "") params[el.name] = el.value;
+  });
+  return params;
+}
+
+// ── Human-readable label for badge display ─────────────────────────────────
+function labelFor(key) {
+  return {
+    search:"Name", project_id:"Project", status:"Status",
+    assigned_to:"Assignee", priority:"Priority",
+    progress_min:"Min %", progress_max:"Max %",
+    due_date_from:"Due From", due_date_to:"Due To",
+    created_from:"Created From", created_to:"Created To",
+    manager_id:"Manager", start_date_from:"Start From", start_date_to:"Start To",
+    end_date_from:"End From", end_date_to:"End To",
+    department_id:"Department", role:"Role", employee_id:"Employee",
+    kind:"Type", period:"Period",
+  }[key] || key;
+}
+
+// ── Active filter badges ───────────────────────────────────────────────────
+function displayValueFor(key, val) {
+  // For ID-based dropdowns, show the label text instead of the raw ID
+  const lookups = {
+    project_id:   OPTIONS.projects,
+    assigned_to:  OPTIONS.employees,
+    manager_id:   OPTIONS.managers,
+    employee_id:  OPTIONS.employees,
+    department_id:OPTIONS.departments,
+  };
+  if (lookups[key]) {
+    const found = lookups[key].find(o => o.id === val);
+    if (found) return found.name;
+  }
+  return val;
+}
+
+function renderBadges() {
+  const filters = collectFilters();
+  const container = document.getElementById("activeBadges");
+  container.innerHTML = "";
+  Object.entries(filters).forEach(([k, v]) => {
+    const badge = document.createElement("span");
+    badge.className = "badge bg-primary-subtle text-primary border border-primary-subtle d-flex align-items-center gap-1";
+    const display = escHtml(displayValueFor(k, v));
+    badge.innerHTML = `<small>${labelFor(k)}: <strong>${display}</strong></small>
+      <button type="button" class="btn-close" style="font-size:.55rem"
+              onclick="clearFilter('${escAttr(k)}')"></button>`;
+    container.appendChild(badge);
+  });
+}
+
+function clearFilter(name) {
+  const type = document.getElementById("reportType").value;
+  const el = panel(type)?.querySelector(`[name="${name}"]`);
+  if (el) el.value = "";
+  renderBadges();
+}
+
+document.getElementById("filterBody").addEventListener("change", renderBadges);
+document.getElementById("filterBody").addEventListener("input",  renderBadges);
+
+// ── Reset ──────────────────────────────────────────────────────────────────
+document.getElementById("resetFilters").addEventListener("click", () => {
+  panel(document.getElementById("reportType").value)
+    ?.querySelectorAll("input, select").forEach(el => el.value = "");
+  renderBadges();
+});
+
+// ── Filter panel collapse toggle ───────────────────────────────────────────
+document.getElementById("filterToggle").addEventListener("click", () => {
+  const body = document.getElementById("filterBody");
+  const chev = document.getElementById("filterChevron");
+  body.classList.toggle("d-none");
+  chev.className = body.classList.contains("d-none") ? "bi bi-chevron-right" : "bi bi-chevron-down";
+});
+
+// ── Generate ───────────────────────────────────────────────────────────────
+async function run() {
+  const type = document.getElementById("reportType").value;
+  const filters = collectFilters();
+  const qs = new URLSearchParams(filters).toString();
+  try {
+    const r = await API.get(`/reports/${type}/${qs ? "?" + qs : ""}`);
+    document.getElementById("reportTitle").textContent = r.title;
+    document.getElementById("rowCount").textContent =
+      r.rows.length ? `${r.rows.length} row${r.rows.length !== 1 ? "s" : ""}` : "";
+    document.querySelector("#reportTable thead").innerHTML =
+      "<tr>" + r.columns.map(c => `<th>${escHtml(c)}</th>`).join("") + "</tr>";
+    document.querySelector("#reportTable tbody").innerHTML =
+      r.rows.length
+        ? r.rows.map(row =>
+            "<tr>" + row.map(c => `<td>${escHtml(String(c ?? ""))}</td>`).join("") + "</tr>"
+          ).join("")
+        : `<tr><td colspan="${r.columns.length}" class="text-muted text-center py-3">No data matches the selected filters.</td></tr>`;
+  } catch (e) { toast(e.message, "danger"); }
+  renderBadges();
+}
+
+document.getElementById("runReport").addEventListener("click", run);
+
+// ── Export (carries current filters) ──────────────────────────────────────
+document.querySelectorAll(".export").forEach(b => b.addEventListener("click", () => {
+  const type = document.getElementById("reportType").value;
+  const qs = new URLSearchParams(collectFilters()).toString();
+  window.open(`/api/v1/reports/${type}/export/${b.dataset.fmt}/${qs ? "?" + qs : ""}`, "_blank");
+}));
 </script>
 {% endblock %}
