@@ -170,6 +170,29 @@
     </div></div>
   </div>
 </div>
+<!-- Edit Actual Hours Modal (management only) -->
+{% if is_management %}
+<div class="modal fade" id="editActualModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-pencil-square"></i> Edit Actual Hours</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label small">Enter time (HH:MM:SS) or decimal hours</label>
+        <input type="text" class="form-control" id="actualHoursInput" placeholder="e.g. 01:30:00 or 1.5">
+        <div class="form-text">This overrides the timer-tracked value. Use the <i class="bi bi-x-circle text-warning"></i> button to revert.</div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="saveActualHoursBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Edit Task Modal -->
 <div class="modal fade" id="editTaskModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
@@ -403,7 +426,8 @@
       } catch (e) { toast(e.message, 'danger'); }
     });
   }
-  document.getElementById('saveActualHoursBtn').addEventListener('click', async () => {
+  const saveActualBtn = document.getElementById('saveActualHoursBtn');
+  if (saveActualBtn) saveActualBtn.addEventListener('click', async () => {
     const val = document.getElementById('actualHoursInput').value.trim();
     let hours = hmsToHours(val);
     if (hours === null) {
@@ -423,25 +447,4 @@
   {% endif %}
 </script>
 
-{% if is_management %}
-<div class="modal fade" id="editActualModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title"><i class="bi bi-pencil-square"></i> Edit Actual Hours</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <label class="form-label small">Enter time (HH:MM:SS) or decimal hours</label>
-        <input type="text" class="form-control" id="actualHoursInput" placeholder="e.g. 01:30:00 or 1.5">
-        <div class="form-text">This overrides the timer-tracked value. Use the <i class="bi bi-x-circle text-warning"></i> button to revert.</div>
-      </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="saveActualHoursBtn">Save</button>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
 {% endblock %}
