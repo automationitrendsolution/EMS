@@ -8,9 +8,9 @@ def delete_user(user):
 
     List memberships (teams, project members) and scalar pointers (managers,
     task assignee/reporter, notification actor) are cleared so the rest of the
-    app keeps working. The user's own performance goals cascade-delete
-    automatically (``reverse_delete_rule=CASCADE``). Authored history such as
-    comments and activity logs is intentionally left intact.
+    app keeps working. The user's own performance goals and time logs
+    cascade-delete automatically (``reverse_delete_rule=CASCADE``). Authored
+    history such as comments and activity logs is intentionally left intact.
     """
     from notifications.models import Notification
     from projects.models import Project

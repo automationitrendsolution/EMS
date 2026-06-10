@@ -89,7 +89,6 @@ def task_detail(request, pk):
             "activity": activity,
             "timelogs": timelogs,
             "total_secs": total_secs,
-            "has_override": task.actual_hours_override is not None,
             "active_timer": active_timer,
             "can_delete_task": can_delete_task,
             "statuses": TASK_STATUSES,

@@ -14,14 +14,26 @@ def utcnow():
 def _task_scope(user):
     if user.role in MANAGEMENT_ROLES:
         return Task.objects()
+    # Mirror tasks.api_views.visible_tasks so the dashboard's totals match the
+    # task list and kanban: include tasks in projects the user can see, not just
+    # ones they're personally assigned to or reported.
+    from projects.services import visible_projects
+
+    project_ids = [p.id for p in visible_projects(user, include_archived=True)]
     return Task.objects(
-        __raw__={"$or": [{"assigned_to": user.id}, {"reporter": user.id}]}
+        __raw__={
+            "$or": [
+                {"project": {"$in": project_ids}},
+                {"assigned_to": user.id},
+                {"reporter": user.id},
+            ]
+        }
     )
 
 
-def _spent_hours(task):
-    """Total tracked hours for a task, respecting any manual override."""
-    return task.actual_seconds / 3600
+def _spent_secs(task):
+    """Total tracked seconds for a task (summed from its time logs)."""
+    return task.actual_seconds
 
 
 def build_dashboard(user):
@@ -45,14 +57,16 @@ def build_dashboard(user):
         "overdue_tasks": overdue,
     }
 
-    # Task details table + total spent hours, calculated (grouped) by status.
+    # Task details table + total spent time, grouped by status. Work in whole
+    # seconds throughout (templates format via secs_to_hms) so summing many
+    # tasks never accumulates float-rounding drift.
     task_rows = []
-    hours_by_status = {s: 0.0 for s in TASK_STATUSES}
-    total_spent = 0.0
+    secs_by_status = {s: 0 for s in TASK_STATUSES}
+    total_spent_secs = 0
     for t in tasks.order_by("-created_at"):
-        spent = _spent_hours(t)
-        total_spent += spent
-        hours_by_status[t.status] += spent
+        spent = _spent_secs(t)
+        total_spent_secs += spent
+        secs_by_status[t.status] += spent
         task_rows.append(
             {
                 "id": str(t.id),
@@ -63,10 +77,11 @@ def build_dashboard(user):
                 "status": t.status,
                 "status_label": STATUS_LABELS.get(t.status, t.status),
                 "priority": t.priority,
+                "priority_label": t.priority_label,
                 "progress": t.progress,
                 "due_date": t.due_date,
-                "estimated_hours": t.estimated_hours or 0,
-                "spent_hours": spent,
+                "estimated_secs": int(round((t.estimated_hours or 0) * 3600)),
+                "spent_secs": spent,
                 "is_overdue": t.is_overdue,
             }
         )
@@ -76,7 +91,7 @@ def build_dashboard(user):
             "status": s,
             "label": STATUS_LABELS.get(s, s),
             "count": status_counts.get(s, 0),
-            "hours": hours_by_status.get(s, 0.0),
+            "secs": secs_by_status.get(s, 0),
         }
         for s in TASK_STATUSES
     ]
@@ -103,6 +118,6 @@ def build_dashboard(user):
         "cards": cards,
         "tasks": task_rows,
         "status_hours": status_hours,
-        "total_spent_hours": total_spent,
+        "total_spent_secs": total_spent_secs,
         "employee_workload": workload[:15],
     }

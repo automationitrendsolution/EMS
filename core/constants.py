@@ -39,7 +39,19 @@ EMPLOYEE_STATUSES = ["active", "inactive", "suspended"]
 
 # ---- Project ----
 PROJECT_STATUSES = ["planning", "active", "completed", "on_hold"]
+PROJECT_STATUS_LABELS = {
+    "planning": "Planning",
+    "active": "Active",
+    "completed": "Completed",
+    "on_hold": "On Hold",
+}
 PRIORITIES = ["low", "medium", "high", "critical"]
+PRIORITY_LABELS = {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "critical": "Critical",
+}
 
 # ---- Task ----
 TASK_STATUSES = ["todo", "in_progress", "review", "testing", "completed", "rejected"]

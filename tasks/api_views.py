@@ -118,6 +118,9 @@ class TaskListCreateView(APIView):
         project = Project.objects(id=d["project_id"]).first()
         if not project:
             return Response({"detail": "Project not found."}, status=400)
+        # RBAC: don't let a user create tasks in a project they can't access.
+        if not can_view_project(request.user, project):
+            return Response({"detail": "Forbidden."}, status=403)
         assignee = (
             User.objects(id=d["assigned_to_id"]).first()
             if d.get("assigned_to_id")
@@ -172,27 +175,26 @@ class TaskDetailView(APIView):
         d = s.validated_data
         prev_status = task.status
         for f in ("title", "description", "priority", "due_date", "estimated_hours",
-                  "actual_hours", "tags"):
+                  "tags"):
             if f in d:
                 setattr(task, f, d[f])
         if "assigned_to_id" in d:
             task.assigned_to = (
                 User.objects(id=d["assigned_to_id"]).first() if d["assigned_to_id"] else None
             )
-        if "status" in d and d["status"] != prev_status:
+        status_changed = "status" in d and d["status"] != prev_status
+        if status_changed:
             task.status = d["status"]
             if d["status"] in ("completed", "rejected"):
                 task.completed_at = utcnow()
                 # Auto-stop any running timers so actual_hours stays accurate.
+                # (task.save() below recomputes actual_hours from the logs.)
                 for log in TimeLog.objects(task=task, end_time=None):
                     if log.is_running:
                         log.accumulated_seconds += int((utcnow() - log.start_time).total_seconds())
                         log.is_running = False
                     log.end_time = utcnow()
                     log.save()
-                task.actual_hours = round(
-                    sum(t.total_seconds for t in TimeLog.objects(task=task)) / 3600, 2
-                )
             log_activity(
                 actor=request.user,
                 task=task,
@@ -212,21 +214,26 @@ class TaskDetailView(APIView):
                     link=f"/tasks/{task.id}/",
                 )
         task.save()
-        log_activity(
-            actor=request.user,
-            task=task,
-            verb=ACTIVITY_TASK_UPDATED,
-            message=f"updated task {task.task_id}",
-        )
-        if task.assigned_to:
-            notify(
-                task.assigned_to,
-                title="Task updated",
-                message=f"'{task.title}' was updated.",
-                notif_type=NOTIF_TASK_UPDATED,
+        # A status change already logged ACTIVITY_STATUS_CHANGED above; don't
+        # also emit a redundant generic "updated task" entry for the same edit.
+        if not status_changed:
+            log_activity(
                 actor=request.user,
-                link=f"/tasks/{task.id}/",
+                task=task,
+                verb=ACTIVITY_TASK_UPDATED,
+                message=f"updated task {task.task_id}",
             )
+            # Notify the assignee of a content edit (status changes get their own
+            # notifications); skip self-notifying the editor.
+            if task.assigned_to and str(task.assigned_to.id) != str(request.user.id):
+                notify(
+                    task.assigned_to,
+                    title="Task updated",
+                    message=f"'{task.title}' was updated.",
+                    notif_type=NOTIF_TASK_UPDATED,
+                    actor=request.user,
+                    link=f"/tasks/{task.id}/",
+                )
         broadcast_board(task.project.id, "updated", task)
         return Response(task_repr(task, full=True))
 
@@ -357,8 +364,16 @@ def bulk_status(request):
                 continue
         prev = t.status
         t.status = new_status
-        if new_status == "completed":
+        if new_status in ("completed", "rejected"):
             t.completed_at = utcnow()
+            # Auto-stop running timers so actual_hours finalizes correctly
+            # (matches single-task complete via move_task / TaskDetailView.patch).
+            for log in TimeLog.objects(task=t, end_time=None):
+                if log.is_running:
+                    log.accumulated_seconds += int((utcnow() - log.start_time).total_seconds())
+                    log.is_running = False
+                log.end_time = utcnow()
+                log.save()
         t.save()
         log_activity(
             actor=request.user, task=t, verb=ACTIVITY_STATUS_CHANGED,
@@ -419,10 +434,7 @@ def move_task(request, pk):
                 log.is_running = False
             log.end_time = utcnow()
             log.save()
-        task.actual_hours = round(
-            sum(t.total_seconds for t in TimeLog.objects(task=task)) / 3600, 2
-        )
-    task.save()
+    task.save()  # recomputes actual_hours from the (now-stopped) time logs
     if prev != task.status:
         log_activity(
             actor=request.user, task=task, verb=ACTIVITY_STATUS_CHANGED,
@@ -613,13 +625,25 @@ def _running_log(task, user):
     return TimeLog.objects(task=task, employee=user, is_running=True).first()
 
 
+def _open_log(task, user):
+    """Any not-yet-stopped timer (running OR paused) for this user+task."""
+    return TimeLog.objects(task=task, employee=user, end_time=None).first()
+
+
 @api_view(["POST"])
 def timer_start(request, pk):
     task, err = get_task_for_user(request.user, pk)
     if err:
         return err
-    if _running_log(task, request.user):
-        return Response({"detail": "Timer already running."}, status=400)
+    # Block if ANY open timer exists (running or paused). Previously this only
+    # checked for a *running* timer, so pause-then-start created a second open
+    # log and double-counted wall-clock time. A paused timer must be *resumed*.
+    existing = _open_log(task, request.user)
+    if existing:
+        msg = ("Timer already running."
+               if existing.is_running
+               else "Timer is paused — resume it instead of starting a new one.")
+        return Response({"detail": msg}, status=400)
     log = TimeLog(task=task, employee=request.user, start_time=utcnow()).save()
     return Response(timelog_repr(log), status=201)
 
@@ -669,10 +693,7 @@ def timer_stop(request, pk):
         log.is_running = False
     log.end_time = utcnow()
     log.save()
-    # Roll the elapsed time into the task's actual_hours.
-    task.actual_hours = round(
-        sum(t.total_seconds for t in TimeLog.objects(task=task)) / 3600, 2
-    )
+    # task.save() recomputes actual_hours from the task's time logs.
     task.save()
     return Response(timelog_repr(log))
 
@@ -689,32 +710,6 @@ def task_timelogs(request, pk):
             "logs": [timelog_repr(t) for t in logs],
         }
     )
-
-
-@api_view(["PATCH", "DELETE"])
-def set_actual_hours(request, pk):
-    """Management-only: manually override or clear a task's actual hours."""
-    if request.user.role not in MANAGEMENT_ROLES:
-        return Response({"detail": "Forbidden."}, status=403)
-    task, err = get_task_for_user(request.user, pk)
-    if err:
-        return err
-    if request.method == "DELETE":
-        task.actual_hours_override = None
-        task.save()
-        return Response({"actual_hours_override": None, "actual_seconds": task.actual_seconds})
-    hours = request.data.get("hours")
-    if hours is None:
-        return Response({"detail": "hours is required."}, status=400)
-    try:
-        hours = float(hours)
-        if hours < 0:
-            return Response({"detail": "hours must be non-negative."}, status=400)
-    except (TypeError, ValueError):
-        return Response({"detail": "Invalid hours value."}, status=400)
-    task.actual_hours_override = hours
-    task.save()
-    return Response({"actual_hours_override": hours, "actual_seconds": task.actual_seconds})
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,8 @@ from accounts.models import Department, PerformanceGoal, User
 from core.constants import (
     PERF_KIND_LABELS,
     PERF_STATUS_LABELS,
+    PRIORITY_LABELS,
+    PROJECT_STATUS_LABELS,
     STATUS_LABELS,
 )
 from projects.models import Project
@@ -17,10 +19,10 @@ def _fmt(dt):
     return dt.strftime("%Y-%m-%d") if dt else ""
 
 
-def _hms(hours):
-    """Convert float hours to HH:MM:SS string."""
+def _hms_secs(total_secs):
+    """Convert whole seconds to an HH:MM:SS string (no float rounding loss)."""
     try:
-        total_secs = int(float(hours or 0) * 3600)
+        total_secs = int(total_secs or 0)
     except (TypeError, ValueError):
         return "00:00:00"
     neg = total_secs < 0
@@ -29,6 +31,14 @@ def _hms(hours):
     m, s = divmod(rem, 60)
     result = f"{h:02d}:{m:02d}:{s:02d}"
     return f"-{result}" if neg else result
+
+
+def _hms(hours):
+    """Convert float hours to HH:MM:SS string."""
+    try:
+        return _hms_secs(int(round(float(hours or 0) * 3600)))
+    except (TypeError, ValueError):
+        return "00:00:00"
 
 
 def _parse_date(val):
@@ -53,9 +63,18 @@ def _parse_date_end(val):
         return None
 
 
-def task_report(filters=None):
+def task_report(filters=None, user=None):
     filters = filters or {}
-    qs = Task.objects()
+    # RBAC: management sees everything; everyone else is scoped to the tasks
+    # they're allowed to see (assigned/reported/own-project), mirroring the
+    # task list and API. Without this, the report leaked every task.
+    from core.constants import MANAGEMENT_ROLES
+
+    if user is not None and user.role not in MANAGEMENT_ROLES:
+        from tasks.api_views import visible_tasks
+        qs = visible_tasks(user)
+    else:
+        qs = Task.objects()
 
     # Text search across title and task_id
     if filters.get("search"):
@@ -99,19 +118,20 @@ def task_report(filters=None):
                "Progress %", "Due Date", "Created", "Est. Hrs", "Actual Hrs"]
     rows = []
     for t in qs.order_by("-created_at"):
-        actual_secs = t.actual_seconds
+        est_secs = int(round((t.estimated_hours or 0) * 3600))
         rows.append([
             t.task_id, t.title,
             t.project.name if t.project else "",
             t.assigned_to.full_name if t.assigned_to else "Unassigned",
-            STATUS_LABELS.get(t.status, t.status), t.priority,
+            STATUS_LABELS.get(t.status, t.status),
+            PRIORITY_LABELS.get(t.priority, t.priority),
             t.progress, _fmt(t.due_date), _fmt(t.created_at),
-            t.estimated_hours, _hms(actual_secs / 3600),
+            _hms_secs(est_secs), _hms_secs(t.actual_seconds),
         ])
     return "Task Report", columns, rows
 
 
-def project_report(filters=None):
+def project_report(filters=None, user=None):
     filters = filters or {}
     qs = Project.objects()
 
@@ -148,19 +168,22 @@ def project_report(filters=None):
         tasks = Task.objects(project=p)
         total = tasks.count()
         done = tasks.filter(status="completed").count()
-        est = p.estimated_hours or 0
-        actual_hours = sum(t.actual_seconds for t in tasks) / 3600
+        est_secs = int(round((p.estimated_hours or 0) * 3600))
+        actual_secs = sum(t.actual_seconds for t in tasks)
         rows.append([
-            p.name, p.status, p.priority,
+            p.name,
+            PROJECT_STATUS_LABELS.get(p.status, p.status),
+            PRIORITY_LABELS.get(p.priority, p.priority),
             p.manager.full_name if p.manager else "",
             total, done, round(done / total * 100) if total else 0,
-            est, _hms(actual_hours), _hms(est - actual_hours),
+            _hms_secs(est_secs), _hms_secs(actual_secs),
+            _hms_secs(est_secs - actual_secs),
             _fmt(p.start_date), _fmt(p.end_date),
         ])
     return "Project Report", columns, rows
 
 
-def employee_report(filters=None):
+def employee_report(filters=None, user=None):
     filters = filters or {}
     qs = User.objects()
 
@@ -191,12 +214,12 @@ def employee_report(filters=None):
             u.department.name if u.department else "",
             u.role_label, u.status,
             open_t, done_t,
-            _hms(secs / 3600),
+            _hms_secs(secs),
         ])
     return "Employee Report", columns, rows
 
 
-def productivity_report(filters=None):
+def productivity_report(filters=None, user=None):
     filters = filters or {}
     qs = User.objects(status="active")
 
@@ -214,18 +237,17 @@ def productivity_report(filters=None):
     for u in qs.order_by("full_name"):
         done_t = Task.objects(assigned_to=u, status="completed").count()
         secs = sum(t.total_seconds for t in TimeLog.objects(employee=u))
-        hours = secs / 3600
         rows.append([
             u.full_name,
             u.department.name if u.department else "",
-            done_t, _hms(hours),
-            _hms(hours / done_t) if done_t else "00:00:00",
+            done_t, _hms_secs(secs),
+            _hms_secs(secs // done_t) if done_t else "00:00:00",
         ])
     rows.sort(key=lambda r: r[2], reverse=True)
     return "Productivity Report", columns, rows
 
 
-def performance_report(filters=None):
+def performance_report(filters=None, user=None):
     """All employees' KRA / KPI goals with advanced filters."""
     filters = filters or {}
     qs = PerformanceGoal.objects()
@@ -280,8 +302,8 @@ REPORTS = {
 FILTERED_REPORTS = set(REPORTS.keys())
 
 
-def build(report_type, filters=None):
+def build(report_type, filters=None, user=None):
     fn = REPORTS.get(report_type)
     if not fn:
         raise ValueError(f"Unknown report type: {report_type}")
-    return fn(filters)
+    return fn(filters, user=user)

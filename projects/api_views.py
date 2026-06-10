@@ -11,19 +11,28 @@ from tasks.models import Task
 
 
 def project_stats(project):
-    from tasks.models import TimeLog
     tasks = Task.objects(project=project)
     total = tasks.count()
     completed = tasks.filter(status="completed").count()
     estimated = project.estimated_hours or 0
-    actual = sum(t.actual_seconds for t in tasks) / 3600
+    # Work in whole seconds end-to-end to avoid float rounding drift; convert
+    # to hours only at the edges (templates format via secs_to_hms).
+    estimated_secs = int(round(estimated * 3600))
+    actual_secs = sum(t.actual_seconds for t in tasks)
+    usage_pct = round(actual_secs / estimated_secs * 100) if estimated_secs else 0
     return {
         "total_tasks": total,
         "completed_tasks": completed,
         "progress": round(completed / total * 100) if total else 0,
         "estimated_hours": estimated,
-        "actual_hours": actual,
-        "remaining_hours": estimated - actual,
+        "estimated_secs": estimated_secs,
+        "actual_hours": actual_secs / 3600,
+        "actual_secs": actual_secs,
+        "remaining_secs": estimated_secs - actual_secs,
+        "remaining_hours": (estimated_secs - actual_secs) / 3600,
+        "over_budget": actual_secs > estimated_secs,
+        "usage_pct": usage_pct,            # true %, may exceed 100
+        "usage_pct_capped": min(usage_pct, 100),  # for the progress bar width
     }
 
 

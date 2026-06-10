@@ -12,7 +12,7 @@ from mongoengine import (
 )
 
 from accounts.models import User
-from core.constants import PRIORITIES, PROJECT_STATUSES
+from core.constants import PRIORITIES, PROJECT_STATUS_LABELS, PROJECT_STATUSES
 
 
 def utcnow():
@@ -59,16 +59,27 @@ class Project(Document):
         return ids
 
     @property
-    def actual_hours(self):
-        """Auto-calculated total actual hours for the project: the sum of its
-        tasks' ``actual_hours`` (each of which is derived from task time logs).
+    def actual_seconds(self):
+        """Total actual seconds for the project: the sum of its tasks'
+        ``actual_seconds`` (override-aware, derived from live time logs).
+        This is the single source of truth for project-level actual effort.
         """
         # Imported lazily — tasks.models imports this module.
         from tasks.models import Task
 
         if not self.id:
-            return 0.0
-        return round(Task.objects(project=self).sum("actual_hours") or 0, 2)
+            return 0
+        return sum(t.actual_seconds for t in Task.objects(project=self))
+
+    @property
+    def actual_hours(self):
+        """Auto-calculated total actual hours for the project (from time logs,
+        respecting per-task manual overrides)."""
+        return round(self.actual_seconds / 3600, 2)
+
+    @property
+    def status_label(self):
+        return PROJECT_STATUS_LABELS.get(self.status, self.status)
 
     def __str__(self):
         return self.name

@@ -111,7 +111,9 @@ class TaskUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=TASK_STATUSES, required=False)
     due_date = serializers.DateTimeField(required=False, allow_null=True)
     estimated_hours = serializers.FloatField(required=False)
-    actual_hours = serializers.FloatField(required=False)
+    # NOTE: actual_hours is intentionally NOT writable here — it is derived from
+    # time logs (and the management-only override endpoint). Letting clients set
+    # it directly is what allowed it to diverge from the tracked time.
     tags = serializers.ListField(child=serializers.CharField(), required=False)
 
 

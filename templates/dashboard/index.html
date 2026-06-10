@@ -18,7 +18,7 @@
 <div class="card stat-card mb-3"><div class="card-body">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h6 class="mb-0">Spent Hours by Status</h6>
-    <span class="badge bg-primary fs-6">Total: {{ data.total_spent_hours|hours_to_hms }}</span>
+    <span class="badge bg-primary fs-6">Total: {{ data.total_spent_secs|secs_to_hms }}</span>
   </div>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
@@ -28,12 +28,12 @@
         <tr>
           <td><span class="badge bg-light text-dark badge-status">{{ s.label }}</span></td>
           <td class="text-end">{{ s.count }}</td>
-          <td class="text-end fw-semibold">{{ s.hours|hours_to_hms }}</td>
+          <td class="text-end fw-semibold">{{ s.secs|secs_to_hms }}</td>
         </tr>
         {% endfor %}
       </tbody>
       <tfoot class="table-group-divider">
-        <tr class="fw-bold"><td>Total</td><td class="text-end">{{ data.cards.total_tasks }}</td><td class="text-end">{{ data.total_spent_hours|hours_to_hms }}</td></tr>
+        <tr class="fw-bold"><td>Total</td><td class="text-end">{{ data.cards.total_tasks }}</td><td class="text-end">{{ data.total_spent_secs|secs_to_hms }}</td></tr>
       </tfoot>
     </table>
   </div>
@@ -57,10 +57,10 @@
           <td><small>{{ t.project }}</small></td>
           <td>{{ t.assignee }}</td>
           <td><span class="badge bg-light text-dark badge-status">{{ t.status_label }}</span></td>
-          <td><span class="priority-dot p-{{ t.priority }}"></span> {{ t.priority }}</td>
+          <td><span class="priority-dot p-{{ t.priority }}"></span> {{ t.priority_label }}</td>
           <td style="width:110px"><div class="progress progress-thin"><div class="progress-bar" style="width:{{ t.progress }}%"></div></div></td>
-          <td class="text-end">{{ t.estimated_hours|hours_to_hms }}</td>
-          <td class="text-end fw-semibold">{{ t.spent_hours|hours_to_hms }}</td>
+          <td class="text-end">{{ t.estimated_secs|secs_to_hms }}</td>
+          <td class="text-end fw-semibold">{{ t.spent_secs|secs_to_hms }}</td>
           <td><small>{{ t.due_date|date:'M d, Y'|default:'—' }}</small></td>
         </tr>
         {% empty %}

@@ -98,7 +98,7 @@ def report_data(request, report_type):
         return Response({"detail": "Forbidden."}, status=403)
     try:
         title, columns, rows = services.build(
-            report_type, filters=request.query_params
+            report_type, filters=request.query_params, user=request.user
         )
     except ValueError as e:
         return Response({"detail": str(e)}, status=400)
@@ -111,7 +111,7 @@ def report_export(request, report_type, fmt):
         return Response({"detail": "Forbidden."}, status=403)
     try:
         title, columns, rows = services.build(
-            report_type, filters=request.query_params
+            report_type, filters=request.query_params, user=request.user
         )
         return export(fmt, title, columns, rows)
     except ValueError as e:

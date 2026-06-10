@@ -9,7 +9,7 @@
     <input class="form-control" name="search" placeholder="Search projects..." value="{{ search }}" />
     <select class="form-select" name="status" onchange="this.form.submit()">
       <option value="">All statuses</option>
-      {% for s in statuses %}<option value="{{ s }}" {% if request.GET.status == s %}selected{% endif %}>{{ s|capfirst }}</option>{% endfor %}
+      {% for s in statuses %}<option value="{{ s }}" {% if request.GET.status == s %}selected{% endif %}>{{ s|humanize_enum }}</option>{% endfor %}
     </select>
     <button class="btn btn-outline-secondary">Filter</button>
   </form>
@@ -24,7 +24,7 @@
     <div class="card stat-card h-100"><div class="card-body">
       <div class="d-flex justify-content-between">
         <h6 class="mb-1"><a href="/projects/{{ p.obj.id }}/" class="text-decoration-none">{{ p.obj.name }}</a></h6>
-        <span class="badge bg-secondary badge-status">{{ p.obj.status }}</span>
+        <span class="badge bg-secondary badge-status">{{ p.obj.status_label }}</span>
       </div>
       <p class="text-muted small mb-2">{{ p.obj.description|default:''|truncatechars:90 }}</p>
       <div class="d-flex justify-content-between small text-muted mb-1">
@@ -33,8 +33,8 @@
       </div>
       <div class="progress progress-thin mb-2"><div class="progress-bar" style="width:{{ p.stats.progress }}%"></div></div>
       <div class="d-flex justify-content-between small text-muted mb-3">
-        <span title="Estimated hours"><i class="bi bi-hourglass"></i> Est: {{ p.obj.estimated_hours|floatformat:"-2" }}h</span>
-        <span title="Actual hours"><i class="bi bi-clock-history"></i> Actual: {{ p.obj.actual_hours|hours_to_hms }}</span>
+        <span title="Estimated hours"><i class="bi bi-hourglass"></i> Est: {{ p.stats.estimated_secs|secs_to_hms }}</span>
+        <span title="Actual hours"><i class="bi bi-clock-history"></i> Actual: {{ p.stats.actual_secs|secs_to_hms }}</span>
       </div>
       <div class="d-flex justify-content-between align-items-center">
         <small class="text-muted"><i class="bi bi-person"></i> {{ p.obj.manager.full_name|default:'No manager' }}</small>
@@ -82,8 +82,8 @@
         <div class="col"><input type="date" class="form-control" name="end_date" /></div>
       </div>
       <div class="row g-2 mb-2">
-        <div class="col"><select class="form-select" name="status">{% for s in statuses %}<option value="{{ s }}">{{ s|capfirst }}</option>{% endfor %}</select></div>
-        <div class="col"><select class="form-select" name="priority">{% for p in priorities %}<option value="{{ p }}">{{ p|capfirst }}</option>{% endfor %}</select></div>
+        <div class="col"><select class="form-select" name="status">{% for s in statuses %}<option value="{{ s }}">{{ s|humanize_enum }}</option>{% endfor %}</select></div>
+        <div class="col"><select class="form-select" name="priority">{% for p in priorities %}<option value="{{ p }}">{{ p|humanize_enum }}</option>{% endfor %}</select></div>
       </div>
       <div class="row g-2 mb-2">
         <div class="col">
@@ -128,13 +128,13 @@
             <div class="col-md-6">
               <label class="form-label small fw-semibold">Status</label>
               <select class="form-select" name="status" id="editProjStatus">
-                {% for s in statuses %}<option value="{{ s }}">{{ s|capfirst }}</option>{% endfor %}
+                {% for s in statuses %}<option value="{{ s }}">{{ s|humanize_enum }}</option>{% endfor %}
               </select>
             </div>
             <div class="col-md-6">
               <label class="form-label small fw-semibold">Priority</label>
               <select class="form-select" name="priority" id="editProjPriority">
-                {% for p in priorities %}<option value="{{ p }}">{{ p|capfirst }}</option>{% endfor %}
+                {% for p in priorities %}<option value="{{ p }}">{{ p|humanize_enum }}</option>{% endfor %}
               </select>
             </div>
           </div>
@@ -220,7 +220,9 @@
         document.getElementById("editProjStart").value = btn.dataset.start || '';
         document.getElementById("editProjEnd").value = btn.dataset.end || '';
         editProjEstHours.value = btn.dataset.est || '';
-        editProjEstDays.textContent = hoursLabel(parseFloat(btn.dataset.est));
+        // Let the wired listener (wireEstimateFromDates) render the "≈ N days"
+        // label; hoursLabel itself is private to that helper and not in scope.
+        editProjEstHours.dispatchEvent(new Event('input'));
 
         // Set status
         const statusSel = document.getElementById("editProjStatus");

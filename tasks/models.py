@@ -2,6 +2,7 @@
 import datetime
 
 from mongoengine import (
+    CASCADE,
     BooleanField,
     DateTimeField,
     Document,
@@ -18,6 +19,8 @@ from accounts.models import User
 from core.constants import (
     ACTIVITY_TASK_CREATED,
     PRIORITIES,
+    PRIORITY_LABELS,
+    STATUS_LABELS,
     TASK_STATUSES,
 )
 from projects.models import Project
@@ -64,6 +67,9 @@ class SubTask(EmbeddedDocument):
 # ---------------------------------------------------------------------------
 class Comment(Document):
     meta = {"collection": "comments", "indexes": ["task", "created_at"]}
+    # NOTE: cascade-on-task-delete is registered after Task is defined (below),
+    # because Task is declared later in this module and isn't in the registry
+    # yet at class-creation time.
     task = ReferenceField("Task", required=True)
     author = ReferenceField(User, required=True)
     body = StringField(required=True)
@@ -79,8 +85,8 @@ class Comment(Document):
 # ---------------------------------------------------------------------------
 class TimeLog(Document):
     meta = {"collection": "time_logs", "indexes": ["task", "employee", "is_running"]}
-    task = ReferenceField("Task", required=True)
-    employee = ReferenceField(User, required=True)
+    task = ReferenceField("Task", required=True)  # cascade registered below
+    employee = ReferenceField(User, required=True, reverse_delete_rule=CASCADE)
     start_time = DateTimeField(required=True, default=utcnow)
     end_time = DateTimeField()
     # Seconds accumulated before the current running segment (for pause/resume).
@@ -113,8 +119,8 @@ class ActivityLog(Document):
         "indexes": ["task", "project", "-created_at"],
         "ordering": ["-created_at"],
     }
-    task = ReferenceField("Task")
-    project = ReferenceField(Project)
+    task = ReferenceField("Task")  # cascade registered below (Task defined later)
+    project = ReferenceField(Project, reverse_delete_rule=CASCADE)
     actor = ReferenceField(User)
     verb = StringField(required=True, default=ACTIVITY_TASK_CREATED)
     message = StringField(required=True)
@@ -142,7 +148,7 @@ class Task(Document):
     task_id = StringField(required=True, unique=True, max_length=32)
     title = StringField(required=True, max_length=300)
     description = StringField()
-    project = ReferenceField(Project, required=True)
+    project = ReferenceField(Project, required=True, reverse_delete_rule=CASCADE)
 
     assigned_to = ReferenceField(User)
     reporter = ReferenceField(User)
@@ -152,8 +158,9 @@ class Task(Document):
 
     due_date = DateTimeField()
     estimated_hours = FloatField(default=0)
+    # Denormalized cache of tracked time (hours). Always kept in sync with
+    # ``actual_seconds`` in save(); never written directly by clients.
     actual_hours = FloatField(default=0)
-    actual_hours_override = FloatField()
     tags = ListField(StringField())
 
     subtasks = EmbeddedDocumentListField(SubTask)
@@ -169,6 +176,15 @@ class Task(Document):
 
     def save(self, *args, **kwargs):
         self.updated_at = utcnow()
+        # Keep the denormalized ``actual_hours`` field in lock-step with the
+        # authoritative ``actual_seconds`` (summed from live time logs). This
+        # guarantees every reader of the field — the task serializer, project
+        # roll-ups, reports — sees one consistent value that can never go stale
+        # after a timer is started, paused, or stopped.
+        if self.id is not None:
+            self.actual_hours = round(self.actual_seconds / 3600, 2)
+        # (New, unsaved tasks have no id yet and therefore no time logs; their
+        #  actual_hours stays at the default 0 until the first save after work.)
         return super().save(*args, **kwargs)
 
     # ---- Module 4: progress formula ----
@@ -187,11 +203,29 @@ class Task(Document):
         return self.due_date < utcnow()
 
     @property
+    def status_label(self):
+        return STATUS_LABELS.get(self.status, self.status)
+
+    @property
+    def priority_label(self):
+        return PRIORITY_LABELS.get(self.priority, self.priority)
+
+    @property
     def actual_seconds(self):
-        """Seconds worked on this task. Returns manual override when set."""
-        if self.actual_hours_override is not None:
-            return int(self.actual_hours_override * 3600)
+        """Seconds worked on this task, summed from its time logs."""
         return sum(tl.total_seconds for tl in TimeLog.objects(task=self))
 
     def __str__(self):
         return f"{self.task_id} · {self.title}"
+
+
+# ---------------------------------------------------------------------------
+# Cascade rules for documents that reference Task by forward (string) name.
+# These can't be declared inline on Comment/TimeLog/ActivityLog because Task is
+# defined after them in this module (not yet in the registry at that point), so
+# we register them here once Task exists. Deleting a Task now also deletes its
+# comments, time logs, and activity entries — no orphaned documents.
+# ---------------------------------------------------------------------------
+Task.register_delete_rule(Comment, "task", CASCADE)
+Task.register_delete_rule(TimeLog, "task", CASCADE)
+Task.register_delete_rule(ActivityLog, "task", CASCADE)

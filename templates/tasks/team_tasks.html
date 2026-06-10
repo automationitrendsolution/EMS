@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load time_filters %}
 {% block title %}Team Tasks · iTrendTASKS{% endblock %}
 {% block heading %}Team Tasks{% endblock %}
 {% block breadcrumb %}<li class="breadcrumb-item active" aria-current="page">Team Tasks</li>{% endblock %}
@@ -7,12 +8,12 @@
   <input class="form-control" name="search" placeholder="Search..." value="{{ search }}" style="max-width:260px" />
   <select class="form-select" name="status" onchange="this.form.submit()" style="max-width:200px">
     <option value="">All statuses</option>
-    {% for s in statuses %}<option value="{{ s }}" {% if status_f == s %}selected{% endif %}>{{ s|capfirst }}</option>{% endfor %}
+    {% for s in statuses %}<option value="{{ s }}" {% if status_f == s %}selected{% endif %}>{{ s|humanize_enum }}</option>{% endfor %}
   </select>
   <button class="btn btn-outline-secondary">Filter</button>
   {% if can_manage %}
   <button type="button" class="btn btn-outline-primary ms-auto" id="bulkBtn" disabled><i class="bi bi-people"></i> Bulk Assign</button>
-  <select class="form-select" id="bulkStatus" style="max-width:170px"><option value="">Bulk status...</option>{% for s in statuses %}<option value="{{ s }}">{{ s|capfirst }}</option>{% endfor %}</select>
+  <select class="form-select" id="bulkStatus" style="max-width:170px" disabled><option value="">Bulk status...</option>{% for s in statuses %}<option value="{{ s }}">{{ s|humanize_enum }}</option>{% endfor %}</select>
   {% endif %}
 </form>
 
@@ -30,8 +31,8 @@
           <td><a href="/tasks/{{ t.id }}/" class="text-decoration-none">{{ t.title }}</a></td>
           <td><small>{{ t.project.name }}</small></td>
           <td>{{ t.assigned_to.full_name|default:'—' }}</td>
-          <td><span class="badge bg-light text-dark badge-status">{{ t.status }}</span></td>
-          <td><span class="priority-dot p-{{ t.priority }}"></span> {{ t.priority }}</td>
+          <td><span class="badge bg-light text-dark badge-status">{{ t.status_label }}</span></td>
+          <td><span class="priority-dot p-{{ t.priority }}"></span> {{ t.priority_label }}</td>
           <td class="text-end">
             {% if is_management or t.reporter and t.reporter.id == current_user.id %}
             <button class="btn btn-sm btn-link text-danger p-0" title="Delete task"
@@ -61,8 +62,14 @@
 <script>
   const checks = () => [...document.querySelectorAll(".task-check:checked")].map(c => c.value);
   const bulkBtn = document.getElementById("bulkBtn");
+  const bulkStatus = document.getElementById("bulkStatus");
   const checkAll = document.getElementById("checkAll");
-  function refresh() { bulkBtn.disabled = checks().length === 0; }
+  function refresh() {
+    const none = checks().length === 0;
+    bulkBtn.disabled = none;
+    bulkStatus.disabled = none;        // keep in step with Bulk Assign
+    if (none) bulkStatus.value = "";   // reset selection when nothing is checked
+  }
   document.querySelectorAll(".task-check").forEach(c => c.addEventListener("change", refresh));
   checkAll.addEventListener("change", () => {
     document.querySelectorAll(".task-check").forEach(c => c.checked = checkAll.checked); refresh();

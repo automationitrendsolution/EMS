@@ -13,8 +13,8 @@
           <td><small>{{ t.task_id }}</small></td>
           <td>{{ t.title }} {% if t.is_overdue %}<span class="badge bg-danger">Overdue</span>{% endif %}</td>
           <td><small>{{ t.project.name }}</small></td>
-          <td><span class="badge bg-light text-dark badge-status">{{ t.status }}</span></td>
-          <td><span class="priority-dot p-{{ t.priority }}"></span> {{ t.priority }}</td>
+          <td><span class="badge bg-light text-dark badge-status">{{ t.status_label }}</span></td>
+          <td><span class="priority-dot p-{{ t.priority }}"></span> {{ t.priority_label }}</td>
           <td style="width:120px"><div class="progress progress-thin"><div class="progress-bar" style="width:{{ t.progress }}%"></div></div></td>
           <td><small>{{ t.due_date|date:'M d, Y'|default:'—' }}</small></td>
           <td class="text-end">

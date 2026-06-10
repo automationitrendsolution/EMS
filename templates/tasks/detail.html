@@ -32,12 +32,12 @@
       <div class="d-flex flex-wrap gap-3 small">
         <span><b>Status:</b>
           <select class="form-select form-select-sm d-inline w-auto" id="statusSel">
-            {% for s in statuses %}<option value="{{ s }}" {% if s == task.status %}selected{% endif %}>{{ s|capfirst }}</option>{% endfor %}
+            {% for s in statuses %}<option value="{{ s }}" {% if s == task.status %}selected{% endif %}>{{ s|humanize_enum }}</option>{% endfor %}
           </select>
         </span>
         <span><b>Priority:</b>
           <select class="form-select form-select-sm d-inline w-auto" id="prioritySel">
-            {% for p in priorities %}<option value="{{ p }}" {% if p == task.priority %}selected{% endif %}>{{ p|capfirst }}</option>{% endfor %}
+            {% for p in priorities %}<option value="{{ p }}" {% if p == task.priority %}selected{% endif %}>{{ p|humanize_enum }}</option>{% endfor %}
           </select>
         </span>
         <span><b>Assignee:</b>
@@ -112,26 +112,15 @@
         </span>
       </h6>
       <div class="timer-clock text-center my-3" id="timerDisplay">00:00:00</div>
-      <div class="d-flex gap-2 justify-content-center">
+      <div class="d-flex gap-2 justify-content-center" id="timerControls">
         <button class="btn btn-sm btn-success" data-timer="start" title="Start"><i class="bi bi-play-fill"></i></button>
         <button class="btn btn-sm btn-warning" data-timer="pause" title="Pause"><i class="bi bi-pause-fill"></i></button>
         <button class="btn btn-sm btn-info" data-timer="resume" title="Resume"><i class="bi bi-skip-forward-fill"></i></button>
         <button class="btn btn-sm btn-danger" data-timer="stop" title="Stop"><i class="bi bi-stop-fill"></i></button>
       </div>
       <div class="small text-muted mt-3 text-center">
-        Est: {{ task.estimated_hours }}h ·
+        Est: {{ task.estimated_hours|hours_to_hms }} ·
         Actual: <span id="actualHours">{{ total_secs|secs_to_hms }}</span>
-        {% if is_management %}
-          <button class="btn btn-link btn-sm p-0 ms-1" id="editActualBtn" title="Edit actual hours" style="font-size:0.75rem;vertical-align:baseline;">
-            <i class="bi bi-pencil"></i>
-          </button>
-          {% if has_override %}
-          <button class="btn btn-link btn-sm p-0 ms-1 text-warning" id="clearActualBtn" title="Clear manual override — revert to tracked time" style="font-size:0.75rem;vertical-align:baseline;">
-            <i class="bi bi-x-circle"></i>
-          </button>
-          {% endif %}
-        {% endif %}
-        · Total tracked: {{ total_secs|secs_to_hms }}
       </div>
     </div></div>
 
@@ -170,29 +159,6 @@
     </div></div>
   </div>
 </div>
-<!-- Edit Actual Hours Modal (management only) -->
-{% if is_management %}
-<div class="modal fade" id="editActualModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title"><i class="bi bi-pencil-square"></i> Edit Actual Hours</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <label class="form-label small">Enter time (HH:MM:SS) or decimal hours</label>
-        <input type="text" class="form-control" id="actualHoursInput" placeholder="e.g. 01:30:00 or 1.5">
-        <div class="form-text">This overrides the timer-tracked value. Use the <i class="bi bi-x-circle text-warning"></i> button to revert.</div>
-      </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="saveActualHoursBtn">Save</button>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
 <!-- Edit Task Modal -->
 <div class="modal fade" id="editTaskModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
@@ -215,13 +181,13 @@
             <div class="col-md-6">
               <label class="form-label small fw-semibold">Status</label>
               <select class="form-select" name="status">
-                {% for s in statuses %}<option value="{{ s }}" {% if s == task.status %}selected{% endif %}>{{ s|capfirst }}</option>{% endfor %}
+                {% for s in statuses %}<option value="{{ s }}" {% if s == task.status %}selected{% endif %}>{{ s|humanize_enum }}</option>{% endfor %}
               </select>
             </div>
             <div class="col-md-6">
               <label class="form-label small fw-semibold">Priority</label>
               <select class="form-select" name="priority">
-                {% for p in priorities %}<option value="{{ p }}" {% if p == task.priority %}selected{% endif %}>{{ p|capfirst }}</option>{% endfor %}
+                {% for p in priorities %}<option value="{{ p }}" {% if p == task.priority %}selected{% endif %}>{{ p|humanize_enum }}</option>{% endfor %}
               </select>
             </div>
           </div>
@@ -257,6 +223,32 @@
 {{ active_timer|json_script:"activeTimerData" }}
 <script>
   const TASK = "{{ task.id }}";
+  const CLOSED_STATUSES = ["completed", "rejected"];
+
+  function setTimerDisabled(disabled) {
+    const controls = document.getElementById("timerControls");
+    controls.querySelectorAll("button[data-timer]").forEach(b => {
+      b.disabled = disabled;
+      b.title = disabled ? "Timer disabled — task is closed" : b.getAttribute("data-timer");
+    });
+    // Show/hide the lock notice
+    let notice = document.getElementById("timerClosedNotice");
+    if (disabled && !notice) {
+      notice = document.createElement("div");
+      notice.id = "timerClosedNotice";
+      notice.className = "text-center mt-2";
+      notice.innerHTML = '<small class="text-muted"><i class="bi bi-lock-fill"></i> Timer disabled — task is closed</small>';
+      controls.after(notice);
+    } else if (!disabled && notice) {
+      notice.remove();
+    }
+  }
+
+  // Disable on load if already closed
+  if (CLOSED_STATUSES.includes("{{ task.status }}")) {
+    setTimerDisabled(true);
+  }
+
   async function patchTask(body, soundKind) {
     try {
       await API.patch(`/tasks/${TASK}/`, body);
@@ -265,8 +257,10 @@
     }
     catch (e) { toast(e.message, "danger"); }
   }
-  document.getElementById("statusSel").addEventListener("change", e =>
-    patchTask({ status: e.target.value }, "notification"));
+  document.getElementById("statusSel").addEventListener("change", e => {
+    patchTask({ status: e.target.value }, "notification");
+    setTimerDisabled(CLOSED_STATUSES.includes(e.target.value));
+  });
   document.getElementById("prioritySel").addEventListener("change", e => patchTask({ priority: e.target.value }));
   document.getElementById("assigneeSel").addEventListener("change", e => patchTask({ assigned_to_id: e.target.value }));
 
@@ -392,59 +386,6 @@
         `<div class="alert alert-info"><i class="bi bi-robot"></i> ${r.summary} <span class="badge bg-dark">${r.source}</span></div>`; }
     catch (err) { toast(err.message, "danger"); }
   });
-
-  {% if is_management %}
-  // Edit actual hours
-  function secsToHms(s) {
-    s = Math.round(s);
-    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
-  }
-  function hmsToHours(hms) {
-    const parts = hms.split(':').map(Number);
-    if (parts.length !== 3 || parts.some(isNaN)) return null;
-    return parts[0] + parts[1]/60 + parts[2]/3600;
-  }
-  const editBtn = document.getElementById('editActualBtn');
-  const clearBtn = document.getElementById('clearActualBtn');
-  if (editBtn) {
-    editBtn.addEventListener('click', () => {
-      const cur = document.getElementById('actualHours').textContent.trim();
-      const modal = new bootstrap.Modal(document.getElementById('editActualModal'));
-      document.getElementById('actualHoursInput').value = cur;
-      modal.show();
-    });
-  }
-  if (clearBtn) {
-    clearBtn.addEventListener('click', async () => {
-      if (!confirm('Clear manual override and revert to tracked time?')) return;
-      try {
-        const r = await API.del(`/tasks/${TASK}/actual-hours/`);
-        document.getElementById('actualHours').textContent = secsToHms(r.actual_seconds);
-        toast('Actual hours reverted to tracked time');
-        setTimeout(() => location.reload(), 800);
-      } catch (e) { toast(e.message, 'danger'); }
-    });
-  }
-  const saveActualBtn = document.getElementById('saveActualHoursBtn');
-  if (saveActualBtn) saveActualBtn.addEventListener('click', async () => {
-    const val = document.getElementById('actualHoursInput').value.trim();
-    let hours = hmsToHours(val);
-    if (hours === null) {
-      // try plain number
-      hours = parseFloat(val);
-      if (isNaN(hours)) { toast('Enter time as HH:MM:SS or decimal hours (e.g. 1.5)', 'warning'); return; }
-    }
-    if (hours < 0) { toast('Hours must be non-negative', 'warning'); return; }
-    try {
-      const r = await API.patch(`/tasks/${TASK}/actual-hours/`, {hours});
-      document.getElementById('actualHours').textContent = secsToHms(r.actual_seconds);
-      bootstrap.Modal.getInstance(document.getElementById('editActualModal')).hide();
-      toast('Actual hours updated');
-      setTimeout(() => location.reload(), 800);
-    } catch (e) { toast(e.message, 'danger'); }
-  });
-  {% endif %}
 </script>
 
 {% endblock %}
