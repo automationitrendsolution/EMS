@@ -691,6 +691,32 @@ def task_timelogs(request, pk):
     )
 
 
+@api_view(["PATCH", "DELETE"])
+def set_actual_hours(request, pk):
+    """Management-only: manually override or clear a task's actual hours."""
+    if request.user.role not in MANAGEMENT_ROLES:
+        return Response({"detail": "Forbidden."}, status=403)
+    task, err = get_task_for_user(request.user, pk)
+    if err:
+        return err
+    if request.method == "DELETE":
+        task.actual_hours_override = None
+        task.save()
+        return Response({"actual_hours_override": None, "actual_seconds": task.actual_seconds})
+    hours = request.data.get("hours")
+    if hours is None:
+        return Response({"detail": "hours is required."}, status=400)
+    try:
+        hours = float(hours)
+        if hours < 0:
+            return Response({"detail": "hours must be non-negative."}, status=400)
+    except (TypeError, ValueError):
+        return Response({"detail": "Invalid hours value."}, status=400)
+    task.actual_hours_override = hours
+    task.save()
+    return Response({"actual_hours_override": hours, "actual_seconds": task.actual_seconds})
+
+
 # ---------------------------------------------------------------------------
 # Module 9: Activity log
 # ---------------------------------------------------------------------------

@@ -27,6 +27,7 @@ urlpatterns = [
     path("tasks/<str:pk>/timer/resume/", v.timer_resume, name="api-timer-resume"),
     path("tasks/<str:pk>/timer/stop/", v.timer_stop, name="api-timer-stop"),
     path("tasks/<str:pk>/timelogs/", v.task_timelogs, name="api-timelogs"),
+    path("tasks/<str:pk>/actual-hours/", v.set_actual_hours, name="api-actual-hours"),
     # activity
     path("tasks/<str:pk>/activity/", v.task_activity, name="api-task-activity"),
     # kanban

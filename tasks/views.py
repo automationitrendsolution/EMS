@@ -58,7 +58,7 @@ def task_detail(request, pk):
     comments = list(Comment.objects(task=task).order_by("created_at"))
     activity = list(ActivityLog.objects(task=task).order_by("-created_at").limit(50))
     timelogs = list(TimeLog.objects(task=task).order_by("-created_at"))
-    total_secs = sum(t.total_seconds for t in timelogs)
+    total_secs = task.actual_seconds
 
     # Current user's active (not yet stopped) timer, so the page can resume the
     # live ticking display on load. Running -> still counting; paused -> frozen.
@@ -89,6 +89,7 @@ def task_detail(request, pk):
             "activity": activity,
             "timelogs": timelogs,
             "total_secs": total_secs,
+            "has_override": task.actual_hours_override is not None,
             "active_timer": active_timer,
             "can_delete_task": can_delete_task,
             "statuses": TASK_STATUSES,

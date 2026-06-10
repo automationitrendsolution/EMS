@@ -20,9 +20,8 @@ def _task_scope(user):
 
 
 def _spent_hours(task):
-    """Total tracked hours for a task, summed across all of its time logs."""
-    secs = sum(tl.total_seconds for tl in TimeLog.objects(task=task))
-    return secs / 3600
+    """Total tracked hours for a task, respecting any manual override."""
+    return task.actual_seconds / 3600
 
 
 def build_dashboard(user):

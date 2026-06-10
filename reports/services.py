@@ -99,7 +99,7 @@ def task_report(filters=None):
                "Progress %", "Due Date", "Created", "Est. Hrs", "Actual Hrs"]
     rows = []
     for t in qs.order_by("-created_at"):
-        actual_secs = sum(tl.total_seconds for tl in TimeLog.objects(task=t))
+        actual_secs = t.actual_seconds
         rows.append([
             t.task_id, t.title,
             t.project.name if t.project else "",
@@ -149,11 +149,7 @@ def project_report(filters=None):
         total = tasks.count()
         done = tasks.filter(status="completed").count()
         est = p.estimated_hours or 0
-        actual_secs = sum(
-            sum(tl.total_seconds for tl in TimeLog.objects(task=t))
-            for t in tasks
-        )
-        actual_hours = actual_secs / 3600
+        actual_hours = sum(t.actual_seconds for t in tasks) / 3600
         rows.append([
             p.name, p.status, p.priority,
             p.manager.full_name if p.manager else "",

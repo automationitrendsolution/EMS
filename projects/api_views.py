@@ -16,11 +16,7 @@ def project_stats(project):
     total = tasks.count()
     completed = tasks.filter(status="completed").count()
     estimated = project.estimated_hours or 0
-    actual_secs = sum(
-        sum(tl.total_seconds for tl in TimeLog.objects(task=t))
-        for t in tasks
-    )
-    actual = actual_secs / 3600
+    actual = sum(t.actual_seconds for t in tasks) / 3600
     return {
         "total_tasks": total,
         "completed_tasks": completed,

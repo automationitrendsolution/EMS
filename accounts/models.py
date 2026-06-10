@@ -18,8 +18,10 @@ from mongoengine import (
 from core.constants import (
     EMPLOYEE_STATUSES,
     PERF_KIND_KRA,
+    PERF_KIND_LABELS,
     PERF_KINDS,
     PERF_STATUSES,
+    PERF_STATUS_LABELS,
     ROLE_EMPLOYEE,
     ROLE_LABELS,
     ROLES,
@@ -166,6 +168,23 @@ class PerformanceGoal(Document):
     created_by = ReferenceField(User)
     created_at = DateTimeField(default=utcnow)
     updated_at = DateTimeField(default=utcnow)
+
+    @property
+    def status_label(self):
+        return PERF_STATUS_LABELS.get(self.status, self.status)
+
+    @property
+    def kind_label(self):
+        return PERF_KIND_LABELS.get(self.kind, self.kind)
+
+    @property
+    def status_color(self):
+        return {
+            "not_started": "secondary",
+            "in_progress": "primary",
+            "achieved": "success",
+            "not_achieved": "danger",
+        }.get(self.status, "secondary")
 
     def save(self, *args, **kwargs):
         self.updated_at = utcnow()

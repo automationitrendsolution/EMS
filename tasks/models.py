@@ -153,6 +153,7 @@ class Task(Document):
     due_date = DateTimeField()
     estimated_hours = FloatField(default=0)
     actual_hours = FloatField(default=0)
+    actual_hours_override = FloatField()
     tags = ListField(StringField())
 
     subtasks = EmbeddedDocumentListField(SubTask)
@@ -184,6 +185,13 @@ class Task(Document):
         if not self.due_date or self.status in ("completed", "rejected"):
             return False
         return self.due_date < utcnow()
+
+    @property
+    def actual_seconds(self):
+        """Seconds worked on this task. Returns manual override when set."""
+        if self.actual_hours_override is not None:
+            return int(self.actual_hours_override * 3600)
+        return sum(tl.total_seconds for tl in TimeLog.objects(task=self))
 
     def __str__(self):
         return f"{self.task_id} · {self.title}"

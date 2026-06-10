@@ -1,8 +1,17 @@
-{% comment %}Reusable KRA/KPI table. Expects: goals, label, full_label, kind.
+{% comment %}Reusable KRA/KPI table. Expects: goals, label, full_label, kind, weight_total.
 Inherits can_edit, self_view, statuses from the parent context.{% endcomment %}
 <div class="card stat-card mb-3"><div class="card-body">
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <h6 class="mb-0"><span class="badge bg-info text-dark">{{ label }}</span> {{ full_label }}</h6>
+    <div class="d-flex align-items-center gap-2">
+      <h6 class="mb-0"><span class="badge bg-info text-dark">{{ label }}</span> {{ full_label }}</h6>
+      {% if goals %}
+        {% if weight_total == 100 %}
+          <span class="badge bg-success-subtle text-success border border-success-subtle small">Weight: 100%</span>
+        {% elif weight_total > 0 %}
+          <span class="badge bg-warning-subtle text-warning border border-warning-subtle small" title="Weightages should total 100%">Weight: {{ weight_total }}% ⚠</span>
+        {% endif %}
+      {% endif %}
+    </div>
     {% if can_edit %}<button class="btn btn-sm btn-primary perf-add" data-kind="{{ kind }}"><i class="bi bi-plus-lg"></i> Add {{ label }}</button>{% endif %}
   </div>
   <div class="table-responsive">
@@ -13,19 +22,35 @@ Inherits can_edit, self_view, statuses from the parent context.{% endcomment %}
         <tr data-id="{{ g.id }}">
           <td><strong>{{ g.title }}</strong>{% if g.description %}<br><small class="text-muted">{{ g.description }}</small>{% endif %}</td>
           <td><small>{{ g.target|default:'—' }}</small></td>
-          <td>{{ g.weightage }}%</td>
+          <td>{% if g.weightage %}{{ g.weightage }}%{% else %}<span class="text-muted">—</span>{% endif %}</td>
           <td><small>{{ g.period|default:'—' }}</small></td>
           <td>
             {% if can_edit or self_view %}
             <select class="form-select form-select-sm perf-status" style="min-width:140px">
               {% for sval,slabel in statuses %}<option value="{{ sval }}" {% if g.status == sval %}selected{% endif %}>{{ slabel }}</option>{% endfor %}
             </select>
-            {% else %}<span class="badge bg-secondary">{{ g.status }}</span>{% endif %}
+            {% else %}
+            <span class="badge bg-{{ g.status_color }}">{{ g.status_label }}</span>
+            {% endif %}
           </td>
           <td>
             {% if can_edit %}
-            <input type="number" class="form-control form-control-sm perf-score" value="{{ g.score }}" min="0" max="100" step="0.5" style="width:84px" />
-            {% else %}<span class="badge bg-light text-dark">{{ g.score }}</span>{% endif %}
+            <div class="d-flex align-items-center gap-2">
+              <input type="number" class="form-control form-control-sm perf-score" value="{{ g.score }}" min="0" max="100" step="0.5" style="width:80px" />
+              <div class="progress flex-grow-1" style="height:6px;min-width:50px" title="{{ g.score }}/100">
+                <div class="progress-bar {% if g.score >= 80 %}bg-success{% elif g.score >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                     style="width:{{ g.score }}%"></div>
+              </div>
+            </div>
+            {% else %}
+            <div class="d-flex align-items-center gap-2">
+              <span class="fw-semibold">{{ g.score }}</span>
+              <div class="progress flex-grow-1" style="height:6px;min-width:50px">
+                <div class="progress-bar {% if g.score >= 80 %}bg-success{% elif g.score >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                     style="width:{{ g.score }}%"></div>
+              </div>
+            </div>
+            {% endif %}
           </td>
           {% if can_edit %}
           <td class="text-end text-nowrap">

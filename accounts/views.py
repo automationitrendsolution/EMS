@@ -237,9 +237,20 @@ def _performance_context(employee, *, can_edit, self_view):
     )
     kras = [g for g in goals if g.kind == "kra"]
     kpis = [g for g in goals if g.kind == "kpi"]
-    # Average score across all scored goals — a quick overall rating.
-    scored = [g.score for g in goals if g.score]
-    avg_score = round(sum(scored) / len(scored), 1) if scored else 0
+
+    # Weighted average score: use weightage as weights; fall back to simple average.
+    total_weight = sum(g.weightage or 0 for g in goals)
+    if total_weight > 0:
+        weighted_score = sum((g.score or 0) * (g.weightage or 0) for g in goals) / total_weight
+    elif goals:
+        weighted_score = sum(g.score or 0 for g in goals) / len(goals)
+    else:
+        weighted_score = 0
+    avg_score = round(weighted_score, 1)
+
+    kra_weight_total = sum(g.weightage or 0 for g in kras)
+    kpi_weight_total = sum(g.weightage or 0 for g in kpis)
+
     return {
         "active": "performance" if self_view else "employees",
         "employee": employee,
@@ -249,6 +260,8 @@ def _performance_context(employee, *, can_edit, self_view):
         "kpis": kpis,
         "goal_count": len(goals),
         "avg_score": avg_score,
+        "kra_weight_total": kra_weight_total,
+        "kpi_weight_total": kpi_weight_total,
         "kinds": [(k, PERF_KIND_LABELS[k], PERF_KIND_FULL_LABELS[k]) for k in PERF_KINDS],
         "statuses": [(s, PERF_STATUS_LABELS[s]) for s in PERF_STATUSES],
     }
