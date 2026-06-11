@@ -221,6 +221,17 @@ OPENAI_API_KEY = env("OPENAI_API_KEY", "")
 OPENAI_MODEL = env("OPENAI_MODEL", "gpt-4o-mini")
 
 # ---------------------------------------------------------------------------
+# Time tracking
+# ---------------------------------------------------------------------------
+# A running timer that is never stopped (browser closed, forgot to hit stop)
+# would otherwise accumulate real wall-clock through nights and weekends and
+# inflate a task's "Actual" time (e.g. 5:30:00 -> 48:55:07). Any single running
+# segment longer than this is treated as *abandoned* and contributes 0 seconds —
+# we keep only the time that was legitimately committed via pause/stop. Tune via
+# env if your team genuinely runs continuous timers longer than this.
+STALE_TIMER_SECONDS = int(env("STALE_TIMER_SECONDS", str(12 * 3600)))
+
+# ---------------------------------------------------------------------------
 # Static & media
 # ---------------------------------------------------------------------------
 STATIC_URL = "/static/"

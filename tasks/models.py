@@ -30,6 +30,29 @@ def utcnow():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
+def running_segment_seconds(start_time):
+    """Real seconds elapsed in a still-running timer segment.
+
+    Guards against *abandoned* timers: if someone starts a timer and never
+    stops it (closes the browser, forgets), the raw ``now - start_time`` would
+    keep growing across nights and weekends and silently inflate a task's
+    actual time (the 5:30:00 -> 48:55:07 bug). Once a single running segment
+    exceeds ``settings.STALE_TIMER_SECONDS`` we treat it as abandoned and count
+    it as 0 — only time that was legitimately committed via pause/stop (already
+    folded into ``accumulated_seconds``) survives. Returns 0 for a missing or
+    future ``start_time``.
+    """
+    from django.conf import settings
+
+    if not start_time:
+        return 0
+    elapsed = int((utcnow() - start_time).total_seconds())
+    if elapsed <= 0:
+        return 0
+    cap = getattr(settings, "STALE_TIMER_SECONDS", 12 * 3600)
+    return 0 if elapsed > cap else elapsed
+
+
 # ---------------------------------------------------------------------------
 # Module 7: Attachment (shared by projects, tasks, comments)
 # ---------------------------------------------------------------------------
@@ -101,10 +124,11 @@ class TimeLog(Document):
         # accumulated_seconds, so don't add (end - start) again.
         if self.end_time:
             return self.accumulated_seconds or 0
-        # Running: previous segments + elapsed time in the current segment.
+        # Running: previous segments + elapsed in the current segment, with the
+        # current segment bounded so an abandoned timer can't inflate the total.
         if self.is_running and self.start_time:
-            return (self.accumulated_seconds or 0) + int(
-                (utcnow() - self.start_time).total_seconds()
+            return (self.accumulated_seconds or 0) + running_segment_seconds(
+                self.start_time
             )
         # Paused (no end_time, not running): accumulated has all work so far.
         return self.accumulated_seconds or 0

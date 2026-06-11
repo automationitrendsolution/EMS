@@ -27,7 +27,15 @@ from core.utils import extract_mentions, save_upload
 from notifications.services import notify
 from projects.models import Project
 from projects.services import can_view_project, visible_projects
-from tasks.models import ActivityLog, Attachment, Comment, SubTask, Task, TimeLog
+from tasks.models import (
+    ActivityLog,
+    Attachment,
+    Comment,
+    SubTask,
+    Task,
+    TimeLog,
+    running_segment_seconds,
+)
 from tasks.serializers import (
     BulkAssignSerializer,
     BulkStatusSerializer,
@@ -191,7 +199,7 @@ class TaskDetailView(APIView):
                 # (task.save() below recomputes actual_hours from the logs.)
                 for log in TimeLog.objects(task=task, end_time=None):
                     if log.is_running:
-                        log.accumulated_seconds += int((utcnow() - log.start_time).total_seconds())
+                        log.accumulated_seconds += running_segment_seconds(log.start_time)
                         log.is_running = False
                     log.end_time = utcnow()
                     log.save()
@@ -370,7 +378,7 @@ def bulk_status(request):
             # (matches single-task complete via move_task / TaskDetailView.patch).
             for log in TimeLog.objects(task=t, end_time=None):
                 if log.is_running:
-                    log.accumulated_seconds += int((utcnow() - log.start_time).total_seconds())
+                    log.accumulated_seconds += running_segment_seconds(log.start_time)
                     log.is_running = False
                 log.end_time = utcnow()
                 log.save()
@@ -430,7 +438,7 @@ def move_task(request, pk):
         task.completed_at = utcnow()
         for log in TimeLog.objects(task=task, end_time=None):
             if log.is_running:
-                log.accumulated_seconds += int((utcnow() - log.start_time).total_seconds())
+                log.accumulated_seconds += running_segment_seconds(log.start_time)
                 log.is_running = False
             log.end_time = utcnow()
             log.save()
@@ -635,6 +643,12 @@ def timer_start(request, pk):
     task, err = get_task_for_user(request.user, pk)
     if err:
         return err
+    # A closed task's actual time is final — don't let a new timer start
+    # against it (the UI disables the controls; enforce it server-side too).
+    if task.status in ("completed", "rejected"):
+        return Response(
+            {"detail": "Task is closed — timer cannot be started."}, status=400
+        )
     # Block if ANY open timer exists (running or paused). Previously this only
     # checked for a *running* timer, so pause-then-start created a second open
     # log and double-counted wall-clock time. A paused timer must be *resumed*.
@@ -656,7 +670,7 @@ def timer_pause(request, pk):
     log = _running_log(task, request.user)
     if not log:
         return Response({"detail": "No running timer."}, status=400)
-    log.accumulated_seconds += int((utcnow() - log.start_time).total_seconds())
+    log.accumulated_seconds += running_segment_seconds(log.start_time)
     log.is_running = False
     log.save()
     return Response(timelog_repr(log))
@@ -667,6 +681,10 @@ def timer_resume(request, pk):
     task, err = get_task_for_user(request.user, pk)
     if err:
         return err
+    if task.status in ("completed", "rejected"):
+        return Response(
+            {"detail": "Task is closed — timer cannot be resumed."}, status=400
+        )
     log = TimeLog.objects(
         task=task, employee=request.user, is_running=False, end_time=None
     ).order_by("-created_at").first()
@@ -689,7 +707,7 @@ def timer_stop(request, pk):
     if not log:
         return Response({"detail": "No active timer."}, status=400)
     if log.is_running:
-        log.accumulated_seconds += int((utcnow() - log.start_time).total_seconds())
+        log.accumulated_seconds += running_segment_seconds(log.start_time)
         log.is_running = False
     log.end_time = utcnow()
     log.save()

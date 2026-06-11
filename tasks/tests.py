@@ -1,9 +1,16 @@
+import datetime
+
 from accounts.auth import make_token_pair
 from accounts.services import create_user
 from core.testutils import MongoTestCase
 from projects.models import Project
-from tasks.models import SubTask, Task
+from tasks.models import SubTask, Task, TimeLog
 from tasks.services import next_task_id
+
+
+def _utc(**delta):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return now - datetime.timedelta(**delta) if delta else now
 
 
 class TaskModelTests(MongoTestCase):
@@ -28,11 +35,43 @@ class TaskModelTests(MongoTestCase):
         self.assertEqual(t.progress, 100)
 
     def test_overdue(self):
-        import datetime
-        past = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)
+        past = _utc(days=1)
         t = Task(task_id=next_task_id(), title="T", project=self.project,
                  due_date=past, status="todo").save()
         self.assertTrue(t.is_overdue)
+
+
+class TimerStaleTests(MongoTestCase):
+    """A timer left running must not inflate a task's actual time."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = create_user(full_name="U", email="u@x.com", password="pw123456")
+        self.project = Project(name="P", manager=self.user).save()
+
+    def test_abandoned_running_timer_contributes_zero(self):
+        # Timer started ~2 days ago and never stopped: the runaway segment is
+        # treated as abandoned, so only previously-accumulated work counts.
+        t = Task(task_id=next_task_id(), title="T", project=self.project).save()
+        log = TimeLog(
+            task=t, employee=self.user,
+            start_time=_utc(days=2), is_running=True,
+            accumulated_seconds=19800,  # 5:30:00 already legitimately tracked
+        ).save()
+        # Without the guard this would be ~48h+; with it, just the 5:30:00.
+        self.assertEqual(log.total_seconds, 19800)
+        self.assertEqual(t.actual_seconds, 19800)
+
+    def test_normal_running_timer_still_counts_live(self):
+        # A timer running for a sane duration keeps counting live.
+        t = Task(task_id=next_task_id(), title="T", project=self.project).save()
+        log = TimeLog(
+            task=t, employee=self.user,
+            start_time=_utc(minutes=30), is_running=True,
+            accumulated_seconds=0,
+        ).save()
+        self.assertGreaterEqual(log.total_seconds, 29 * 60)
+        self.assertLessEqual(log.total_seconds, 31 * 60)
 
 
 class TaskAPITests(MongoTestCase):
@@ -85,6 +124,15 @@ class TaskAPITests(MongoTestCase):
         )
         self.assertEqual(stop.status_code, 200, stop.content)
         self.assertFalse(stop.json()["is_running"])
+
+    def test_timer_start_blocked_on_closed_task(self):
+        t = Task(task_id=next_task_id(), title="T", project=self.project,
+                 reporter=self.admin, status="completed").save()
+        res = self.client.post(
+            f"/api/v1/tasks/{t.id}/timer/start/", content_type="application/json",
+            **self.auth,
+        )
+        self.assertEqual(res.status_code, 400, res.content)
 
     def test_kanban_board_columns(self):
         Task(task_id=next_task_id(), title="T", project=self.project,
