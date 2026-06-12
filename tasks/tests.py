@@ -112,7 +112,7 @@ class TaskAPITests(MongoTestCase):
 
     def test_timer_start_then_stop(self):
         t = Task(task_id=next_task_id(), title="T", project=self.project,
-                 reporter=self.admin).save()
+                 reporter=self.admin, assigned_to=self.admin).save()
         start = self.client.post(
             f"/api/v1/tasks/{t.id}/timer/start/", content_type="application/json",
             **self.auth,
@@ -127,12 +127,26 @@ class TaskAPITests(MongoTestCase):
 
     def test_timer_start_blocked_on_closed_task(self):
         t = Task(task_id=next_task_id(), title="T", project=self.project,
-                 reporter=self.admin, status="completed").save()
+                 reporter=self.admin, assigned_to=self.admin,
+                 status="completed").save()
         res = self.client.post(
             f"/api/v1/tasks/{t.id}/timer/start/", content_type="application/json",
             **self.auth,
         )
         self.assertEqual(res.status_code, 400, res.content)
+
+    def test_timer_blocked_for_non_assignee(self):
+        # Only the assigned person may run a task's timer. A task assigned to
+        # someone else (here: nobody) must reject the start with 403.
+        other = create_user(full_name="B", email="b@x.com",
+                            password="pw123456", role="employee")
+        t = Task(task_id=next_task_id(), title="T", project=self.project,
+                 reporter=self.admin, assigned_to=other).save()
+        res = self.client.post(
+            f"/api/v1/tasks/{t.id}/timer/start/", content_type="application/json",
+            **self.auth,
+        )
+        self.assertEqual(res.status_code, 403, res.content)
 
     def test_kanban_board_columns(self):
         Task(task_id=next_task_id(), title="T", project=self.project,

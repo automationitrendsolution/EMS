@@ -84,6 +84,11 @@ def task_detail(request, pk):
     can_delete_task = me.role in MANAGEMENT_ROLES or (
         task.reporter and str(task.reporter.id) == str(me.id)
     )
+    # Only the assigned person may run the timer (mirrors require_task_assignee
+    # in the API). Everyone else sees the controls disabled.
+    can_use_timer = bool(
+        task.assigned_to and str(task.assigned_to.id) == str(me.id)
+    )
     return render(
         request,
         "tasks/detail.html",
@@ -96,6 +101,7 @@ def task_detail(request, pk):
             "total_secs": total_secs,
             "active_timer": active_timer,
             "can_delete_task": can_delete_task,
+            "can_use_timer": can_use_timer,
             "can_edit_actual": me.role in ACTUAL_HOURS_EDIT_ROLES,
             "statuses": TASK_STATUSES,
             "priorities": PRIORITIES,

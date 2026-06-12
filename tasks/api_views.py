@@ -99,6 +99,23 @@ def get_task_for_user(user, pk):
     return task, None
 
 
+def require_task_assignee(task, user):
+    """Gate timer actions to the task's assigned person only.
+
+    Tracked time belongs to whoever is actually doing the work, so only the
+    assignee may start/pause/resume/stop a task's timer. Everyone else (other
+    employees, the reporter, project viewers, even management) is rejected —
+    the UI disables the controls for them and this enforces it server-side.
+    Returns an error Response when the user is not the assignee, else None.
+    """
+    if not task.assigned_to or str(task.assigned_to.id) != str(user.id):
+        return Response(
+            {"detail": "Only the assigned person can use this task's timer."},
+            status=403,
+        )
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Module 3: Task CRUD + list with search/filter/sort/pagination
 # ---------------------------------------------------------------------------
@@ -647,6 +664,9 @@ def timer_start(request, pk):
     task, err = get_task_for_user(request.user, pk)
     if err:
         return err
+    err = require_task_assignee(task, request.user)
+    if err:
+        return err
     # A closed task's actual time is final — don't let a new timer start
     # against it (the UI disables the controls; enforce it server-side too).
     if task.status in ("completed", "rejected"):
@@ -671,6 +691,9 @@ def timer_pause(request, pk):
     task, err = get_task_for_user(request.user, pk)
     if err:
         return err
+    err = require_task_assignee(task, request.user)
+    if err:
+        return err
     log = _running_log(task, request.user)
     if not log:
         return Response({"detail": "No running timer."}, status=400)
@@ -683,6 +706,9 @@ def timer_pause(request, pk):
 @api_view(["POST"])
 def timer_resume(request, pk):
     task, err = get_task_for_user(request.user, pk)
+    if err:
+        return err
+    err = require_task_assignee(task, request.user)
     if err:
         return err
     if task.status in ("completed", "rejected"):
@@ -703,6 +729,9 @@ def timer_resume(request, pk):
 @api_view(["POST"])
 def timer_stop(request, pk):
     task, err = get_task_for_user(request.user, pk)
+    if err:
+        return err
+    err = require_task_assignee(task, request.user)
     if err:
         return err
     log = TimeLog.objects(

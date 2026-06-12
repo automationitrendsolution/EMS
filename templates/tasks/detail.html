@@ -265,29 +265,37 @@
 <script>
   const TASK = "{{ task.id }}";
   const CLOSED_STATUSES = ["completed", "rejected"];
+  // Only the assigned person may run the timer (enforced server-side too).
+  const CAN_USE_TIMER = {{ can_use_timer|yesno:"true,false" }};
 
-  function setTimerDisabled(disabled) {
+  function setTimerDisabled(disabled, reason) {
     const controls = document.getElementById("timerControls");
     controls.querySelectorAll("button[data-timer]").forEach(b => {
       b.disabled = disabled;
-      b.title = disabled ? "Timer disabled — task is closed" : b.getAttribute("data-timer");
+      b.title = disabled ? (reason || "Timer disabled") : b.getAttribute("data-timer");
     });
     // Show/hide the lock notice
     let notice = document.getElementById("timerClosedNotice");
-    if (disabled && !notice) {
-      notice = document.createElement("div");
-      notice.id = "timerClosedNotice";
-      notice.className = "text-center mt-2";
-      notice.innerHTML = '<small class="text-muted"><i class="bi bi-lock-fill"></i> Timer disabled — task is closed</small>';
-      controls.after(notice);
-    } else if (!disabled && notice) {
+    if (disabled) {
+      const text = reason || "Timer disabled";
+      if (!notice) {
+        notice = document.createElement("div");
+        notice.id = "timerClosedNotice";
+        notice.className = "text-center mt-2";
+        controls.after(notice);
+      }
+      notice.innerHTML = '<small class="text-muted"><i class="bi bi-lock-fill"></i> ' + text + '</small>';
+    } else if (notice) {
       notice.remove();
     }
   }
 
-  // Disable on load if already closed
-  if (CLOSED_STATUSES.includes("{{ task.status }}")) {
-    setTimerDisabled(true);
+  // Lock the timer for anyone who isn't the assignee, or when the task is closed.
+  // The assignee check wins and can't be undone by status changes below.
+  if (!CAN_USE_TIMER) {
+    setTimerDisabled(true, "Timer available only to the assigned person");
+  } else if (CLOSED_STATUSES.includes("{{ task.status }}")) {
+    setTimerDisabled(true, "Timer disabled — task is closed");
   }
 
   async function patchTask(body, soundKind) {
@@ -300,7 +308,16 @@
   }
   document.getElementById("statusSel").addEventListener("change", e => {
     patchTask({ status: e.target.value }, "notification");
-    setTimerDisabled(CLOSED_STATUSES.includes(e.target.value));
+    if (!CAN_USE_TIMER) {
+      setTimerDisabled(true, "Timer available only to the assigned person");
+    } else if (CLOSED_STATUSES.includes(e.target.value)) {
+      // Completing/rejecting a task closes it: the server auto-stops the
+      // running timer, so freeze the live clock here to match.
+      freezeTimer();
+      setTimerDisabled(true, "Timer disabled — task is closed");
+    } else {
+      setTimerDisabled(false);
+    }
   });
   document.getElementById("prioritySel").addEventListener("change", e => patchTask({ priority: e.target.value }));
   document.getElementById("assigneeSel").addEventListener("change", e => patchTask({ assigned_to_id: e.target.value }));
@@ -371,6 +388,15 @@
     ticker = setInterval(() => { elapsed += 1; display.textContent = fmt(elapsed); }, 1000);
   }
   function stopTicking() { clearInterval(ticker); ticker = null; }
+  // Freeze the live clock when the task is closed (the server has already
+  // stopped & finalized the timer). Hoisted, so the status handler above can
+  // call it. Also mirror the finalized total into the Actual field.
+  function freezeTimer() {
+    stopTicking();
+    running = false;
+    paint();
+    document.getElementById("actualHours").textContent = fmt(elapsed);
+  }
 
   paint();
   if (running) startTicking();
