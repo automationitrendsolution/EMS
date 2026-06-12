@@ -9,12 +9,14 @@ from rest_framework.views import APIView
 from accounts.models import User
 from core.api_helpers import paginate
 from core.constants import (
+    ACTUAL_HOURS_EDIT_ROLES,
     ACTIVITY_COMMENT_ADDED,
     ACTIVITY_FILE_UPLOADED,
     ACTIVITY_STATUS_CHANGED,
     ACTIVITY_TASK_ASSIGNED,
     ACTIVITY_TASK_CREATED,
     ACTIVITY_TASK_UPDATED,
+    FULL_VISIBILITY_ROLES,
     KANBAN_COLUMNS,
     MANAGEMENT_ROLES,
     NOTIF_COMMENT_MENTION,
@@ -66,7 +68,9 @@ def utcnow():
 # Visibility helpers
 # ---------------------------------------------------------------------------
 def visible_tasks(user):
-    if user.role in MANAGEMENT_ROLES:
+    # Only super-admins see every task; everyone else is scoped to tasks in
+    # projects they can see, plus tasks assigned to or reported by them.
+    if user.role in FULL_VISIBILITY_ROLES:
         return Task.objects()
     project_ids = [p.id for p in visible_projects(user, include_archived=True)]
     return Task.objects(
@@ -84,7 +88,7 @@ def get_task_for_user(user, pk):
     task = Task.objects(id=pk).first()
     if not task:
         return None, Response({"detail": "Not found."}, status=404)
-    if user.role not in MANAGEMENT_ROLES:
+    if user.role not in FULL_VISIBILITY_ROLES:
         allowed = (
             (task.assigned_to and str(task.assigned_to.id) == str(user.id))
             or (task.reporter and str(task.reporter.id) == str(user.id))
@@ -714,6 +718,51 @@ def timer_stop(request, pk):
     # task.save() recomputes actual_hours from the task's time logs.
     task.save()
     return Response(timelog_repr(log))
+
+
+@api_view(["POST"])
+def set_actual_hours(request, pk):
+    """Manually override (or clear) a task's actual hours.
+
+    Restricted to super-admins and project managers. Send ``actual_hours`` as a
+    number to override, or null / empty string to clear the override and fall
+    back to the tracked time logs.
+    """
+    if request.user.role not in ACTUAL_HOURS_EDIT_ROLES:
+        return Response({"detail": "Forbidden."}, status=403)
+    task, err = get_task_for_user(request.user, pk)
+    if err:
+        return err
+
+    raw = request.data.get("actual_hours", None)
+    if raw in (None, ""):
+        task.actual_hours_override = None
+        action_msg = "cleared the manual actual-hours override"
+    else:
+        try:
+            hours = float(raw)
+        except (TypeError, ValueError):
+            return Response({"detail": "actual_hours must be a number."}, status=400)
+        if hours < 0:
+            return Response({"detail": "actual_hours cannot be negative."}, status=400)
+        task.actual_hours_override = hours
+        action_msg = f"set actual hours to {hours:g}h"
+
+    task.save()  # recomputes the denormalized actual_hours from actual_seconds
+    log_activity(
+        actor=request.user,
+        task=task,
+        verb=ACTIVITY_TASK_UPDATED,
+        message=action_msg,
+    )
+    broadcast_board(task.project.id, "updated", task)
+    return Response(
+        {
+            "total_seconds": task.actual_seconds,
+            "actual_hours": task.actual_hours,
+            "is_overridden": task.actual_hours_is_overridden,
+        }
+    )
 
 
 @api_view(["GET"])

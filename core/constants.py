@@ -34,6 +34,15 @@ ROLE_RANK = {
 
 MANAGEMENT_ROLES = [ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_PROJECT_MANAGER]
 
+# Roles that can see *every* project and task. Everyone else — including
+# admins and project managers — is scoped to the projects/tasks they own,
+# manage, are assigned to, or are a team member of. Intentionally narrower
+# than MANAGEMENT_ROLES (which still governs who may create/edit/delete).
+FULL_VISIBILITY_ROLES = [ROLE_SUPER_ADMIN]
+
+# Roles allowed to manually override a task's actual (logged) hours.
+ACTUAL_HOURS_EDIT_ROLES = [ROLE_SUPER_ADMIN, ROLE_PROJECT_MANAGER]
+
 # ---- Employee status ----
 EMPLOYEE_STATUSES = ["active", "inactive", "suspended"]
 
@@ -84,6 +93,20 @@ PERF_STATUS_LABELS = {
     "in_progress": "In Progress",
     "achieved": "Achieved",
     "not_achieved": "Not Achieved",
+}
+
+# ---- Employee Error tracking (super-admin only) ----
+ERROR_SEVERITIES = ["low", "medium", "high", "critical"]
+ERROR_SEVERITY_LABELS = {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "critical": "Critical",
+}
+ERROR_STATUSES = ["open", "resolved"]
+ERROR_STATUS_LABELS = {
+    "open": "Open",
+    "resolved": "Resolved",
 }
 
 # ---- Activity log verbs ----

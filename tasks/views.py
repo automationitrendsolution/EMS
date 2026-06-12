@@ -2,7 +2,12 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 
 from accounts.models import User
-from core.constants import MANAGEMENT_ROLES, PRIORITIES, TASK_STATUSES
+from core.constants import (
+    ACTUAL_HOURS_EDIT_ROLES,
+    MANAGEMENT_ROLES,
+    PRIORITIES,
+    TASK_STATUSES,
+)
 from core.decorators import login_required
 from projects.models import Project
 from projects.services import can_view_project, visible_projects
@@ -91,6 +96,7 @@ def task_detail(request, pk):
             "total_secs": total_secs,
             "active_timer": active_timer,
             "can_delete_task": can_delete_task,
+            "can_edit_actual": me.role in ACTUAL_HOURS_EDIT_ROLES,
             "statuses": TASK_STATUSES,
             "priorities": PRIORITIES,
             "employees": list(User.objects(status="active")),

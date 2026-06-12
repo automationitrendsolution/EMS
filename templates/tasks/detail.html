@@ -121,6 +121,13 @@
       <div class="small text-muted mt-3 text-center">
         Est: {{ task.estimated_hours|hours_to_hms }} ·
         Actual: <span id="actualHours">{{ total_secs|secs_to_hms }}</span>
+        <span id="actualOverrideBadge" class="badge bg-info-subtle text-info border border-info-subtle {% if not task.actual_hours_is_overridden %}d-none{% endif %}" title="Actual hours manually set by management">manual</span>
+        {% if can_edit_actual %}
+        <button class="btn btn-sm btn-link p-0 ms-1 align-baseline" id="editActualBtn"
+                data-bs-toggle="modal" data-bs-target="#actualHoursModal" title="Edit actual hours">
+          <i class="bi bi-pencil"></i>
+        </button>
+        {% endif %}
       </div>
     </div></div>
 
@@ -217,6 +224,40 @@
     </div>
   </div>
 </div>
+
+{% if can_edit_actual %}
+<!-- Edit Actual Hours Modal (super admin / project manager only) -->
+<div class="modal fade" id="actualHoursModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-clock-history"></i> Edit Actual Hours</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="actualHoursForm">
+          <p class="small text-muted">
+            Manually set the actual (logged) hours for this task. This overrides the
+            tracked timer total. Clear the field and save to revert to the timer total.
+          </p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Actual Hours</label>
+            <input type="number" step="0.25" min="0" class="form-control" name="actual_hours"
+                   id="actualHoursInput"
+                   value="{% if task.actual_hours_is_overridden %}{{ task.actual_hours }}{% endif %}"
+                   placeholder="e.g. 5.5" />
+            <div class="form-text">Leave blank to clear the override and use tracked time.</div>
+          </div>
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-outline-secondary" id="clearActualBtn">Clear override</button>
+            <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -356,6 +397,38 @@
     try { await API.postForm(`/tasks/${TASK}/attachments/`, fd); location.reload(); }
     catch (err) { toast(err.message, "danger"); }
   });
+
+  // ---- Edit actual hours (super admin / project manager only) ----
+  const actualForm = document.getElementById("actualHoursForm");
+  if (actualForm) {
+    async function saveActual(value) {
+      try {
+        const r = await API.post(`/tasks/${TASK}/actual-hours/`, { actual_hours: value });
+        elapsed = r.total_seconds;
+        if (running) stopTicking();
+        running = false;
+        document.getElementById("actualHours").textContent = fmt(r.total_seconds);
+        display.textContent = fmt(r.total_seconds);
+        paint();
+        document.getElementById("actualOverrideBadge")
+          .classList.toggle("d-none", !r.is_overridden);
+        // Move focus out of the modal before hiding so Bootstrap doesn't put
+        // aria-hidden on an element that still holds focus (a11y warning).
+        document.activeElement?.blur();
+        bootstrap.Modal.getInstance(document.getElementById("actualHoursModal"))?.hide();
+        toast("Actual hours updated");
+      } catch (err) { toast(err.message, "danger"); }
+    }
+    actualForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const v = document.getElementById("actualHoursInput").value.trim();
+      saveActual(v === "" ? null : v);
+    });
+    document.getElementById("clearActualBtn").addEventListener("click", () => {
+      document.getElementById("actualHoursInput").value = "";
+      saveActual(null);
+    });
+  }
 
   // Edit Task Modal — auto-calc estimate from due date (today → due date)
   wireEstimateFromDates({

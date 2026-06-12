@@ -1,5 +1,5 @@
 """Project visibility (RBAC scoping) helpers."""
-from core.constants import MANAGEMENT_ROLES
+from core.constants import FULL_VISIBILITY_ROLES, MANAGEMENT_ROLES
 from projects.models import Project
 
 
@@ -8,9 +8,11 @@ def visible_projects(user, include_archived=False):
     qs = Project.objects()
     if not include_archived:
         qs = qs.filter(is_archived=False)
-    if user.role in MANAGEMENT_ROLES:
+    # Only super-admins see every project; everyone else (admins, project
+    # managers, team leaders, employees) is scoped to projects they manage or
+    # are a member of.
+    if user.role in FULL_VISIBILITY_ROLES:
         return qs
-    # Team leaders & employees only see projects they belong to.
     return qs.filter(__raw__={"$or": [{"manager": user.id}, {"team_members": user.id}]})
 
 
@@ -21,6 +23,6 @@ def can_edit_project(user, project):
 
 
 def can_view_project(user, project):
-    if user.role in MANAGEMENT_ROLES:
+    if user.role in FULL_VISIBILITY_ROLES:
         return True
     return str(user.id) in project.member_ids

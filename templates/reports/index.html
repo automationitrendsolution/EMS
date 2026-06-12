@@ -12,6 +12,7 @@
     <option value="employee">Employee Report</option>
     <option value="productivity">Productivity Report</option>
     <option value="performance">Performance (KRA/KPI) Report</option>
+    {% if is_super_admin %}<option value="employee_error">Employee Error Report</option>{% endif %}
   </select>
   <button class="btn btn-primary" id="runReport"><i class="bi bi-play-fill"></i> Generate</button>
   <button class="btn btn-outline-secondary" id="resetFilters" title="Clear all filters"><i class="bi bi-x-circle"></i> Reset</button>
@@ -232,6 +233,42 @@
       </div>
     </div>
 
+    <!-- ── Employee Error Report Filters ── -->
+    <div class="filter-panel d-none" data-report="employee_error">
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Error Title</label>
+          <input type="text" class="form-control form-control-sm" name="search" placeholder="Search title...">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Employee</label>
+          <select class="form-select form-select-sm" name="employee_id">
+            <option value="">All Employees</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Severity</label>
+          <select class="form-select form-select-sm" name="severity">
+            <option value="">All Severities</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Status</label>
+          <select class="form-select form-select-sm" name="status">
+            <option value="">All Statuses</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Logged Date</label>
+          <div class="input-group input-group-sm">
+            <input type="date" class="form-control" name="created_from">
+            <span class="input-group-text">–</span>
+            <input type="date" class="form-control" name="created_to">
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /card-body -->
 </div>
 
@@ -321,6 +358,14 @@ function populateAllPanels() {
   sel(perf, "kind").innerHTML          = '<option value="">All Types</option>'       + opts(OPTIONS.perf_kinds,     "value", "label");
   sel(perf, "status").innerHTML        = '<option value="">All Statuses</option>'    + opts(OPTIONS.perf_statuses,  "value", "label");
   sel(perf, "period").innerHTML        = '<option value="">All Periods</option>'     + opts(OPTIONS.periods,        "value", "label");
+
+  // ── Employee Error panel (super-admin only; panel may be absent for others) ──
+  const errp = panel("employee_error");
+  if (errp) {
+    sel(errp, "employee_id").innerHTML = '<option value="">All Employees</option>'  + opts(OPTIONS.employees,         "id",    "name");
+    sel(errp, "severity").innerHTML    = '<option value="">All Severities</option>' + opts(OPTIONS.error_severities || [], "value", "label");
+    sel(errp, "status").innerHTML      = '<option value="">All Statuses</option>'   + opts(OPTIONS.error_statuses || [],   "value", "label");
+  }
 }
 
 function panel(type) {
@@ -365,7 +410,7 @@ function labelFor(key) {
     manager_id:"Manager", start_date_from:"Start From", start_date_to:"Start To",
     end_date_from:"End From", end_date_to:"End To",
     department_id:"Department", role:"Role", employee_id:"Employee",
-    kind:"Type", period:"Period",
+    kind:"Type", period:"Period", severity:"Severity",
   }[key] || key;
 }
 

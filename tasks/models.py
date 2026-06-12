@@ -185,6 +185,10 @@ class Task(Document):
     # Denormalized cache of tracked time (hours). Always kept in sync with
     # ``actual_seconds`` in save(); never written directly by clients.
     actual_hours = FloatField(default=0)
+    # Manual override of actual hours, set only by super-admins / project
+    # managers. When not None it *replaces* the time-log-derived value (see
+    # ``actual_seconds``); set back to None to fall back to the tracked timers.
+    actual_hours_override = FloatField(default=None)
     tags = ListField(StringField())
 
     subtasks = EmbeddedDocumentListField(SubTask)
@@ -236,8 +240,18 @@ class Task(Document):
 
     @property
     def actual_seconds(self):
-        """Seconds worked on this task, summed from its time logs."""
+        """Seconds worked on this task.
+
+        A manual override (set by management) wins over the tracked timers; with
+        no override we sum the task's time logs as usual.
+        """
+        if self.actual_hours_override is not None:
+            return int(round(self.actual_hours_override * 3600))
         return sum(tl.total_seconds for tl in TimeLog.objects(task=self))
+
+    @property
+    def actual_hours_is_overridden(self):
+        return self.actual_hours_override is not None
 
     def __str__(self):
         return f"{self.task_id} · {self.title}"

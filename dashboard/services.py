@@ -2,7 +2,7 @@
 import datetime
 
 from accounts.models import User
-from core.constants import MANAGEMENT_ROLES, STATUS_LABELS, TASK_STATUSES
+from core.constants import FULL_VISIBILITY_ROLES, STATUS_LABELS, TASK_STATUSES
 from projects.models import Project
 from tasks.models import Task, TimeLog
 
@@ -12,7 +12,7 @@ def utcnow():
 
 
 def _task_scope(user):
-    if user.role in MANAGEMENT_ROLES:
+    if user.role in FULL_VISIBILITY_ROLES:
         return Task.objects()
     # Mirror tasks.api_views.visible_tasks so the dashboard's totals match the
     # task list and kanban: include tasks in projects the user can see, not just
@@ -38,7 +38,7 @@ def _spent_secs(task):
 
 def build_dashboard(user):
     tasks = _task_scope(user)
-    projects = Project.objects() if user.role in MANAGEMENT_ROLES else Project.objects(
+    projects = Project.objects() if user.role in FULL_VISIBILITY_ROLES else Project.objects(
         __raw__={"$or": [{"manager": user.id}, {"team_members": user.id}]}
     )
     now = utcnow()
@@ -96,9 +96,10 @@ def build_dashboard(user):
         for s in TASK_STATUSES
     ]
 
-    # Employee workload (management only): open tasks per assignee.
+    # Employee workload (super-admin only): open tasks per assignee across the
+    # whole org. Scoped roles don't see other employees' workloads.
     workload = []
-    if user.role in MANAGEMENT_ROLES:
+    if user.role in FULL_VISIBILITY_ROLES:
         for emp in User.objects(status="active"):
             open_count = Task.objects(
                 assigned_to=emp, status__nin=["completed", "rejected"]

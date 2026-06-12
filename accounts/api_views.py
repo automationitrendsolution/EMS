@@ -14,6 +14,7 @@ from accounts.auth import (
 from accounts.models import (
     Department,
     Designation,
+    EmployeeError,
     PerformanceGoal,
     Team,
     User,
@@ -36,7 +37,12 @@ from accounts.serializers import (
     user_repr,
 )
 from accounts.services import create_user, delete_user
-from core.constants import MANAGEMENT_ROLES
+from core.constants import (
+    ERROR_SEVERITIES,
+    ERROR_STATUSES,
+    MANAGEMENT_ROLES,
+    ROLE_SUPER_ADMIN,
+)
 from core.api_helpers import paginate
 
 
@@ -396,4 +402,150 @@ class PerformanceGoalDetailView(APIView):
         if not goal:
             return Response({"detail": "Not found."}, status=404)
         goal.delete()
+        return Response(status=204)
+
+
+# ---------------------------------------------------------------------------
+# Employee Errors (super-admin only)
+# ---------------------------------------------------------------------------
+def _parse_date(val):
+    import datetime
+
+    if not val:
+        return None
+    try:
+        d = datetime.datetime.strptime(val, "%Y-%m-%d")
+        return d.replace(tzinfo=datetime.timezone.utc)
+    except ValueError:
+        return None
+
+
+def _parse_date_end(val):
+    import datetime
+
+    if not val:
+        return None
+    try:
+        d = datetime.datetime.strptime(val, "%Y-%m-%d")
+        return d.replace(
+            hour=23, minute=59, second=59, tzinfo=datetime.timezone.utc
+        )
+    except ValueError:
+        return None
+
+
+def employee_error_repr(e):
+    return {
+        "id": str(e.id),
+        "employee_id": str(e.employee.id) if e.employee else None,
+        "employee_name": e.employee.full_name if e.employee else "(deleted)",
+        "title": e.title,
+        "description": e.description or "",
+        "severity": e.severity,
+        "severity_label": e.severity_label,
+        "status": e.status,
+        "status_label": e.status_label,
+        "created_by": e.created_by.full_name if e.created_by else None,
+        "created_at": e.created_at.isoformat() if e.created_at else None,
+    }
+
+
+def _require_super_admin(request):
+    return request.user.role == ROLE_SUPER_ADMIN
+
+
+def _filter_employee_errors(params):
+    qs = EmployeeError.objects()
+    if params.get("employee_id"):
+        qs = qs.filter(employee=params["employee_id"])
+    if params.get("severity"):
+        qs = qs.filter(severity=params["severity"])
+    if params.get("status"):
+        qs = qs.filter(status=params["status"])
+    if params.get("search"):
+        qs = qs.filter(title__icontains=params["search"])
+    date_from = _parse_date(params.get("date_from"))
+    date_to = _parse_date_end(params.get("date_to"))
+    if date_from:
+        qs = qs.filter(created_at__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__lte=date_to)
+    return qs.order_by("-created_at")
+
+
+class EmployeeErrorListCreateView(APIView):
+    def get(self, request):
+        if not _require_super_admin(request):
+            return Response({"detail": "Forbidden."}, status=403)
+        qs = _filter_employee_errors(request.query_params)
+        return paginate(request, qs, employee_error_repr)
+
+    def post(self, request):
+        if not _require_super_admin(request):
+            return Response({"detail": "Forbidden."}, status=403)
+        d = request.data
+        employee = _resolve_ref(User, d.get("employee_id"))
+        if not employee:
+            return Response({"detail": "Employee is required."}, status=400)
+        title = (d.get("title") or "").strip()
+        if not title:
+            return Response({"detail": "Title is required."}, status=400)
+        severity = d.get("severity") or "medium"
+        if severity not in ERROR_SEVERITIES:
+            return Response({"detail": "Invalid severity."}, status=400)
+        status_val = d.get("status") or "open"
+        if status_val not in ERROR_STATUSES:
+            return Response({"detail": "Invalid status."}, status=400)
+        err = EmployeeError(
+            employee=employee,
+            title=title,
+            description=(d.get("description") or "").strip() or None,
+            severity=severity,
+            status=status_val,
+            created_by=request.user,
+        ).save()
+        return Response(employee_error_repr(err), status=201)
+
+
+class EmployeeErrorDetailView(APIView):
+    def get_object(self, pk):
+        return EmployeeError.objects(id=pk).first()
+
+    def patch(self, request, pk):
+        if not _require_super_admin(request):
+            return Response({"detail": "Forbidden."}, status=403)
+        err = self.get_object(pk)
+        if not err:
+            return Response({"detail": "Not found."}, status=404)
+        d = request.data
+        if "employee_id" in d:
+            employee = _resolve_ref(User, d.get("employee_id"))
+            if not employee:
+                return Response({"detail": "Employee not found."}, status=400)
+            err.employee = employee
+        if "title" in d:
+            title = (d.get("title") or "").strip()
+            if not title:
+                return Response({"detail": "Title is required."}, status=400)
+            err.title = title
+        if "description" in d:
+            err.description = (d.get("description") or "").strip() or None
+        if "severity" in d:
+            if d["severity"] not in ERROR_SEVERITIES:
+                return Response({"detail": "Invalid severity."}, status=400)
+            err.severity = d["severity"]
+        if "status" in d:
+            if d["status"] not in ERROR_STATUSES:
+                return Response({"detail": "Invalid status."}, status=400)
+            err.status = d["status"]
+        err.save()
+        return Response(employee_error_repr(err))
+
+    def delete(self, request, pk):
+        if not _require_super_admin(request):
+            return Response({"detail": "Forbidden."}, status=403)
+        err = self.get_object(pk)
+        if not err:
+            return Response({"detail": "Not found."}, status=404)
+        err.delete()
         return Response(status=204)

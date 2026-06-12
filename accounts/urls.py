@@ -18,4 +18,5 @@ urlpatterns = [
         name="employee-performance",
     ),
     path("performance/", views.my_performance_page, name="my-performance"),
+    path("employee-errors/", views.employee_errors_page, name="employee-errors"),
 ]

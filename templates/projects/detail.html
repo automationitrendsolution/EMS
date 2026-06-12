@@ -176,14 +176,24 @@
 {% block scripts %}
 <script>
   const tf = document.getElementById("taskForm");
-  if (tf) tf.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const body = Object.fromEntries(new FormData(tf).entries());
-    if (!body.due_date) delete body.due_date;
-    body.estimated_hours = parseFloat(body.estimated_hours || 0);
-    try { await API.post("/tasks/", body); location.reload(); }
-    catch (err) { toast(err.message, "danger"); }
-  });
+  if (tf) {
+    // Default the due date field to the current date/time on creation, using
+    // the browser's local clock (the server runs in UTC). Editable as usual.
+    const dueEl = tf.querySelector('[name=due_date]');
+    if (dueEl && !dueEl.value) {
+      const t = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      dueEl.value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
+    }
+    tf.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const body = Object.fromEntries(new FormData(tf).entries());
+      if (!body.due_date) delete body.due_date;
+      body.estimated_hours = parseFloat(body.estimated_hours || 0);
+      try { await API.post("/tasks/", body); location.reload(); }
+      catch (err) { toast(err.message, "danger"); }
+    });
+  }
 
   // New Task form — auto-calc estimate from due date (today → due date)
   const newTaskEstHours = document.getElementById("newTaskEstHours");

@@ -1,0 +1,229 @@
+{% extends 'base.html' %}
+{% block title %}Employee Errors · iTrendTASKS{% endblock %}
+{% block heading %}Employee Errors{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active" aria-current="page">Employee Errors</li>{% endblock %}
+{% block content %}
+
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} py-2">{{ message }}</div>
+  {% endfor %}
+{% endif %}
+
+<div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+  <h6 class="mb-0 text-muted align-self-center"><i class="bi bi-exclamation-triangle"></i> Logged employee errors</h6>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addErrorModal"><i class="bi bi-plus-lg"></i> Add Employee Error</button>
+</div>
+
+<!-- Filters -->
+<div class="card stat-card mb-3"><div class="card-body">
+  <form class="row g-2 align-items-end" method="get">
+    <div class="col-md-3">
+      <label class="form-label small fw-semibold">Search Title</label>
+      <input class="form-control form-control-sm" name="search" placeholder="Error title..." value="{{ filters.search }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small fw-semibold">Employee</label>
+      <select class="form-select form-select-sm" name="employee_id">
+        <option value="">All Employees</option>
+        {% for e in employees %}<option value="{{ e.id }}" {% if filters.employee_id == e.id|stringformat:'s' %}selected{% endif %}>{{ e.full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small fw-semibold">Severity</label>
+      <select class="form-select form-select-sm" name="severity">
+        <option value="">All</option>
+        {% for val,label in severities %}<option value="{{ val }}" {% if filters.severity == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small fw-semibold">Status</label>
+      <select class="form-select form-select-sm" name="status">
+        <option value="">All</option>
+        {% for val,label in statuses %}<option value="{{ val }}" {% if filters.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small fw-semibold">From</label>
+      <input type="date" class="form-control form-control-sm" name="date_from" value="{{ filters.date_from }}" />
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small fw-semibold">To</label>
+      <input type="date" class="form-control form-control-sm" name="date_to" value="{{ filters.date_to }}" />
+    </div>
+    <div class="col-md-3 d-flex gap-2">
+      <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Filter</button>
+      <a class="btn btn-sm btn-outline-secondary" href="/employee-errors/"><i class="bi bi-x-circle"></i> Reset</a>
+    </div>
+  </form>
+</div></div>
+
+<div class="card stat-card"><div class="card-body">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead><tr><th>Employee</th><th>Title</th><th>Description</th><th>Severity</th><th>Status</th><th>Logged By</th><th>Date</th><th></th></tr></thead>
+      <tbody>
+        {% for e in errors %}
+        <tr id="err-row-{{ e.id }}">
+          <td>{{ e.employee.full_name|default:'(deleted)' }}</td>
+          <td>{{ e.title }}</td>
+          <td><small class="text-muted">{{ e.description|default:'—'|truncatechars:80 }}</small></td>
+          <td><span class="badge bg-{{ e.severity_color }}">{{ e.severity_label }}</span></td>
+          <td>{% if e.status == 'open' %}<span class="badge bg-warning text-dark">Open</span>{% else %}<span class="badge bg-success">Resolved</span>{% endif %}</td>
+          <td><small>{{ e.created_by.full_name|default:'—' }}</small></td>
+          <td><small>{{ e.created_at|date:'M d, Y H:i' }}</small></td>
+          <td class="text-end text-nowrap">
+            <button class="btn btn-sm btn-link p-0 me-2 edit-err-btn"
+                    data-id="{{ e.id }}"
+                    data-employee="{{ e.employee.id|default:'' }}"
+                    data-title="{{ e.title }}"
+                    data-description="{{ e.description|default:'' }}"
+                    data-severity="{{ e.severity }}"
+                    data-status="{{ e.status }}"
+                    title="Edit"><i class="bi bi-pencil"></i> Edit</button>
+            <button class="btn btn-sm btn-link text-danger p-0"
+                    data-delete-url="/api/v1/auth/employee-errors/{{ e.id }}/"
+                    data-remove="#err-row-{{ e.id }}"
+                    data-confirm="Delete this error record for '{{ e.employee.full_name|default:'employee' }}'?"><i class="bi bi-trash"></i> Delete</button>
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="8" class="text-center text-muted">No employee errors match the current filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+<!-- Add Error Modal -->
+<div class="modal fade" id="addErrorModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header">
+    <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Add Employee Error</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    <form id="addErrorForm">
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Employee <span class="text-danger">*</span></label>
+        <select class="form-select" name="employee_id" required>
+          <option value="">Select an employee...</option>
+          {% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Error Title <span class="text-danger">*</span></label>
+        <input class="form-control" name="title" placeholder="Short summary of the error" required />
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Description</label>
+        <textarea class="form-control" name="description" rows="3" placeholder="What happened / details"></textarea>
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col">
+          <label class="form-label fw-semibold">Severity</label>
+          <select class="form-select" name="severity">
+            {% for val,label in severities %}<option value="{{ val }}" {% if val == 'medium' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col">
+          <label class="form-label fw-semibold">Status</label>
+          <select class="form-select" name="status">
+            {% for val,label in statuses %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Error</button>
+      </div>
+    </form>
+  </div>
+</div></div></div>
+
+<!-- Edit Error Modal -->
+<div class="modal fade" id="editErrorModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header">
+    <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Edit Employee Error</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    <form id="editErrorForm">
+      <input type="hidden" id="editErrId" />
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Employee <span class="text-danger">*</span></label>
+        <select class="form-select" id="editErrEmployee" name="employee_id" required>
+          {% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Error Title <span class="text-danger">*</span></label>
+        <input class="form-control" id="editErrTitle" name="title" required />
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold">Description</label>
+        <textarea class="form-control" id="editErrDescription" name="description" rows="3"></textarea>
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col">
+          <label class="form-label fw-semibold">Severity</label>
+          <select class="form-select" id="editErrSeverity" name="severity">
+            {% for val,label in severities %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col">
+          <label class="form-label fw-semibold">Status</label>
+          <select class="form-select" id="editErrStatus" name="status">
+            {% for val,label in statuses %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div></div></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Create
+  document.getElementById("addErrorForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = Object.fromEntries(fd.entries());
+    try {
+      await API.post("/auth/employee-errors/", body);
+      toast("Employee error logged");
+      location.reload();
+    } catch (err) { toast(err.message, "danger"); }
+  });
+
+  // Edit — populate modal
+  document.querySelectorAll(".edit-err-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.getElementById("editErrId").value = btn.dataset.id;
+      document.getElementById("editErrEmployee").value = btn.dataset.employee;
+      document.getElementById("editErrTitle").value = btn.dataset.title;
+      document.getElementById("editErrDescription").value = btn.dataset.description;
+      document.getElementById("editErrSeverity").value = btn.dataset.severity;
+      document.getElementById("editErrStatus").value = btn.dataset.status;
+      new bootstrap.Modal(document.getElementById("editErrorModal")).show();
+    });
+  });
+
+  // Edit — submit
+  document.getElementById("editErrorForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const id = document.getElementById("editErrId").value;
+    const fd = new FormData(e.target);
+    const body = Object.fromEntries(fd.entries());
+    try {
+      await API.patch(`/auth/employee-errors/${id}/`, body);
+      toast("Employee error updated");
+      location.reload();
+    } catch (err) { toast(err.message, "danger"); }
+  });
+</script>
+{% endblock %}

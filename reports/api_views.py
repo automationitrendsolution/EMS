@@ -3,12 +3,15 @@ from rest_framework.response import Response
 
 from accounts.models import Department, PerformanceGoal, User
 from core.constants import (
+    ERROR_SEVERITY_LABELS,
+    ERROR_STATUS_LABELS,
     MANAGEMENT_ROLES,
     PERF_KIND_LABELS,
     PERF_STATUS_LABELS,
     PRIORITIES,
     PROJECT_STATUSES,
     ROLE_LABELS,
+    ROLE_SUPER_ADMIN,
     ROLES,
     STATUS_LABELS,
     TASK_STATUSES,
@@ -88,12 +91,18 @@ def filter_options(request):
         "roles": [{"value": r, "label": ROLE_LABELS[r]} for r in ROLES],
         "perf_kinds": [{"value": k, "label": v} for k, v in PERF_KIND_LABELS.items()],
         "perf_statuses": [{"value": k, "label": v} for k, v in PERF_STATUS_LABELS.items()],
+        "error_severities": [{"value": k, "label": v}
+                             for k, v in ERROR_SEVERITY_LABELS.items()],
+        "error_statuses": [{"value": k, "label": v}
+                           for k, v in ERROR_STATUS_LABELS.items()],
     })
 
 
 @api_view(["GET"])
 def report_data(request, report_type):
     """Return report rows as JSON (for on-screen tables)."""
+    if report_type == "employee_error" and request.user.role != ROLE_SUPER_ADMIN:
+        return Response({"detail": "Forbidden."}, status=403)
     if request.user.role not in MANAGEMENT_ROLES and report_type != "task":
         return Response({"detail": "Forbidden."}, status=403)
     try:
@@ -107,6 +116,8 @@ def report_data(request, report_type):
 
 @api_view(["GET"])
 def report_export(request, report_type, fmt):
+    if report_type == "employee_error" and request.user.role != ROLE_SUPER_ADMIN:
+        return Response({"detail": "Forbidden."}, status=403)
     if request.user.role not in MANAGEMENT_ROLES and report_type != "task":
         return Response({"detail": "Forbidden."}, status=403)
     try:

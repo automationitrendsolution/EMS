@@ -3,8 +3,10 @@ import datetime
 
 from mongoengine.queryset.visitor import Q
 
-from accounts.models import Department, PerformanceGoal, User
+from accounts.models import Department, EmployeeError, PerformanceGoal, User
 from core.constants import (
+    ERROR_SEVERITY_LABELS,
+    ERROR_STATUS_LABELS,
     PERF_KIND_LABELS,
     PERF_STATUS_LABELS,
     PRIORITY_LABELS,
@@ -65,12 +67,12 @@ def _parse_date_end(val):
 
 def task_report(filters=None, user=None):
     filters = filters or {}
-    # RBAC: management sees everything; everyone else is scoped to the tasks
-    # they're allowed to see (assigned/reported/own-project), mirroring the
-    # task list and API. Without this, the report leaked every task.
-    from core.constants import MANAGEMENT_ROLES
+    # RBAC: only super-admins see every task; everyone else is scoped to the
+    # tasks they're allowed to see (assigned/reported/own-project), mirroring
+    # the task list and API. Without this, the report leaked every task.
+    from core.constants import FULL_VISIBILITY_ROLES
 
-    if user is not None and user.role not in MANAGEMENT_ROLES:
+    if user is not None and user.role not in FULL_VISIBILITY_ROLES:
         from tasks.api_views import visible_tasks
         qs = visible_tasks(user)
     else:
@@ -133,7 +135,15 @@ def task_report(filters=None, user=None):
 
 def project_report(filters=None, user=None):
     filters = filters or {}
-    qs = Project.objects()
+    # Only super-admins see every project; everyone else is scoped to the
+    # projects they manage or belong to (mirrors the projects list).
+    from core.constants import FULL_VISIBILITY_ROLES
+
+    if user is not None and user.role not in FULL_VISIBILITY_ROLES:
+        from projects.services import visible_projects
+        qs = visible_projects(user, include_archived=True)
+    else:
+        qs = Project.objects()
 
     # Text search by project name
     if filters.get("search"):
@@ -291,12 +301,55 @@ def performance_report(filters=None, user=None):
     return "Performance (KRA/KPI) Report", columns, rows
 
 
+def employee_error_report(filters=None, user=None):
+    """All logged employee errors with filters (super-admin only)."""
+    filters = filters or {}
+    qs = EmployeeError.objects()
+
+    # Text search by error title
+    if filters.get("search"):
+        qs = qs.filter(title__icontains=filters["search"])
+
+    if filters.get("employee_id"):
+        qs = qs.filter(employee=filters["employee_id"])
+    if filters.get("severity"):
+        qs = qs.filter(severity=filters["severity"])
+    if filters.get("status"):
+        qs = qs.filter(status=filters["status"])
+
+    created_from = _parse_date(filters.get("created_from"))
+    created_to = _parse_date_end(filters.get("created_to"))
+    if created_from:
+        qs = qs.filter(created_at__gte=created_from)
+    if created_to:
+        qs = qs.filter(created_at__lte=created_to)
+
+    columns = ["Employee ID", "Employee", "Department", "Title", "Description",
+               "Severity", "Status", "Logged By", "Date"]
+    rows = []
+    for e in qs.order_by("-created_at"):
+        emp = e.employee
+        rows.append([
+            emp.employee_id if emp else "",
+            emp.full_name if emp else "(deleted)",
+            emp.department.name if emp and emp.department else "",
+            e.title,
+            e.description or "",
+            ERROR_SEVERITY_LABELS.get(e.severity, e.severity),
+            ERROR_STATUS_LABELS.get(e.status, e.status),
+            e.created_by.full_name if e.created_by else "",
+            _fmt(e.created_at),
+        ])
+    return "Employee Error Report", columns, rows
+
+
 REPORTS = {
     "task": task_report,
     "project": project_report,
     "employee": employee_report,
     "productivity": productivity_report,
     "performance": performance_report,
+    "employee_error": employee_error_report,
 }
 
 FILTERED_REPORTS = set(REPORTS.keys())

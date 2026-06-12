@@ -7,12 +7,17 @@ from django.shortcuts import redirect, render
 from accounts.models import (
     Department,
     Designation,
+    EmployeeError,
     PerformanceGoal,
     Team,
     User,
 )
 from accounts.services import create_user
 from core.constants import (
+    ERROR_SEVERITIES,
+    ERROR_SEVERITY_LABELS,
+    ERROR_STATUS_LABELS,
+    ERROR_STATUSES,
     MANAGEMENT_ROLES,
     PERF_KINDS,
     PERF_KIND_FULL_LABELS,
@@ -20,6 +25,7 @@ from core.constants import (
     PERF_STATUS_LABELS,
     PERF_STATUSES,
     ROLE_LABELS,
+    ROLE_SUPER_ADMIN,
     ROLES,
 )
 from core.decorators import login_required, roles_required
@@ -265,6 +271,68 @@ def _performance_context(employee, *, can_edit, self_view):
         "kinds": [(k, PERF_KIND_LABELS[k], PERF_KIND_FULL_LABELS[k]) for k in PERF_KINDS],
         "statuses": [(s, PERF_STATUS_LABELS[s]) for s in PERF_STATUSES],
     }
+
+
+@login_required
+@roles_required(ROLE_SUPER_ADMIN)
+def employee_errors_page(request):
+    """Super-admin-only log of employee errors, with filters."""
+    import datetime
+
+    def _parse(val, *, end=False):
+        if not val:
+            return None
+        try:
+            d = datetime.datetime.strptime(val, "%Y-%m-%d")
+        except ValueError:
+            return None
+        if end:
+            d = d.replace(hour=23, minute=59, second=59)
+        return d.replace(tzinfo=datetime.timezone.utc)
+
+    search = request.GET.get("search", "")
+    employee_id = request.GET.get("employee_id", "")
+    severity = request.GET.get("severity", "")
+    status_f = request.GET.get("status", "")
+    date_from = request.GET.get("date_from", "")
+    date_to = request.GET.get("date_to", "")
+
+    qs = EmployeeError.objects()
+    if search:
+        qs = qs.filter(title__icontains=search)
+    if employee_id:
+        qs = qs.filter(employee=employee_id)
+    if severity:
+        qs = qs.filter(severity=severity)
+    if status_f:
+        qs = qs.filter(status=status_f)
+    df = _parse(date_from)
+    dt = _parse(date_to, end=True)
+    if df:
+        qs = qs.filter(created_at__gte=df)
+    if dt:
+        qs = qs.filter(created_at__lte=dt)
+
+    errors = list(qs.order_by("-created_at"))
+    return render(
+        request,
+        "employees/errors.html",
+        {
+            "active": "employee_errors",
+            "errors": errors,
+            "employees": list(User.objects(status="active").order_by("full_name")),
+            "severities": [(s, ERROR_SEVERITY_LABELS[s]) for s in ERROR_SEVERITIES],
+            "statuses": [(s, ERROR_STATUS_LABELS[s]) for s in ERROR_STATUSES],
+            "filters": {
+                "search": search,
+                "employee_id": employee_id,
+                "severity": severity,
+                "status": status_f,
+                "date_from": date_from,
+                "date_to": date_to,
+            },
+        },
+    )
 
 
 @login_required

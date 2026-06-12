@@ -92,9 +92,10 @@
         </div>
         <div class="col d-flex align-items-center"><small class="text-muted">Actual hrs auto-calculated from task time logs.</small></div>
       </div>
+      <label class="form-label small fw-semibold">Manager</label>
       <select class="form-select mb-2" name="manager_id">
         <option value="">Select manager...</option>
-        {% for m in managers %}<option value="{{ m.id }}">{{ m.full_name }}</option>{% endfor %}
+        {% for m in managers %}<option value="{{ m.id }}" {% if m.id == current_user.id %}selected{% endif %}>{{ m.full_name }}</option>{% endfor %}
       </select>
       <label class="form-label small">Team members (Ctrl/Cmd-click)</label>
       <select class="form-select mb-3" name="team_member_ids" multiple size="4">
@@ -180,6 +181,14 @@
   // Create Project form
   const f = document.getElementById("projForm");
   if (f) {
+    // Default the start date to today (project creation date). Uses the
+    // browser's local date so it matches the user's "today" regardless of the
+    // server timezone (which is UTC).
+    const startEl = f.querySelector('[name=start_date]');
+    if (startEl && !startEl.value) {
+      const t = new Date();
+      startEl.value = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+    }
     // Auto-calc estimate from start/end date
     wireEstimateFromDates({
       startEl: f.querySelector('[name=start_date]'),

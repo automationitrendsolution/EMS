@@ -30,4 +30,15 @@ urlpatterns = [
         v.PerformanceGoalDetailView.as_view(),
         name="api-performance-detail",
     ),
+    # employee errors (super-admin only)
+    path(
+        "employee-errors/",
+        v.EmployeeErrorListCreateView.as_view(),
+        name="api-employee-errors",
+    ),
+    path(
+        "employee-errors/<str:pk>/",
+        v.EmployeeErrorDetailView.as_view(),
+        name="api-employee-error",
+    ),
 ]

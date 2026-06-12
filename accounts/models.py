@@ -17,6 +17,10 @@ from mongoengine import (
 
 from core.constants import (
     EMPLOYEE_STATUSES,
+    ERROR_SEVERITIES,
+    ERROR_SEVERITY_LABELS,
+    ERROR_STATUS_LABELS,
+    ERROR_STATUSES,
     PERF_KIND_KRA,
     PERF_KIND_LABELS,
     PERF_KINDS,
@@ -192,3 +196,52 @@ class PerformanceGoal(Document):
 
     def __str__(self):
         return f"[{self.kind.upper()}] {self.title}"
+
+
+class EmployeeError(Document):
+    """A logged mistake / error attributed to an employee.
+
+    Only super-admins may create, view or report on these records.
+    """
+
+    meta = {
+        "collection": "employee_errors",
+        "indexes": ["employee", "severity", "status", "-created_at"],
+        "ordering": ["-created_at"],
+    }
+
+    # Remove an employee's error records if the employee document is deleted.
+    employee = ReferenceField(User, required=True, reverse_delete_rule=CASCADE)
+    title = StringField(required=True, max_length=200)
+    description = StringField()
+    severity = StringField(choices=ERROR_SEVERITIES, default="medium", required=True)
+    status = StringField(choices=ERROR_STATUSES, default="open", required=True)
+
+    created_by = ReferenceField(User)
+    created_at = DateTimeField(default=utcnow)
+    updated_at = DateTimeField(default=utcnow)
+
+    @property
+    def severity_label(self):
+        return ERROR_SEVERITY_LABELS.get(self.severity, self.severity)
+
+    @property
+    def status_label(self):
+        return ERROR_STATUS_LABELS.get(self.status, self.status)
+
+    @property
+    def severity_color(self):
+        return {
+            "low": "secondary",
+            "medium": "info",
+            "high": "warning",
+            "critical": "danger",
+        }.get(self.severity, "secondary")
+
+    def save(self, *args, **kwargs):
+        self.updated_at = utcnow()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        emp = self.employee.full_name if self.employee else "(deleted)"
+        return f"[{self.severity}] {emp}: {self.title}"

@@ -3,9 +3,10 @@ def current_user(request):
     unread = 0
     api_token = None
     is_management = False
+    is_super_admin = False
     if user:
         from accounts.auth import make_access_token
-        from core.constants import MANAGEMENT_ROLES
+        from core.constants import MANAGEMENT_ROLES, ROLE_SUPER_ADMIN
         from notifications.models import Notification
 
         unread = Notification.objects(recipient=user, is_read=False).count()
@@ -13,9 +14,11 @@ def current_user(request):
         # / open authenticated WebSockets while using session-based pages.
         api_token = make_access_token(user)
         is_management = user.role in MANAGEMENT_ROLES
+        is_super_admin = user.role == ROLE_SUPER_ADMIN
     return {
         "current_user": user,
         "unread_notifications": unread,
         "api_token": api_token,
         "is_management": is_management,
+        "is_super_admin": is_super_admin,
     }
