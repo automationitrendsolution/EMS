@@ -156,20 +156,25 @@ function businessDays(start, end) {
    opts.hoursEl  – estimated hours input to fill
    opts.daysEl   – optional element to display "≈ X days @ 8 hr/day"
    Fires on change of startEl and endEl; user can still override hours manually. */
-function wireEstimateFromDates({ startEl, endEl, hoursEl, daysEl }) {
+function wireEstimateFromDates({ startEl, endEl, hoursEl, daysEl, startDate }) {
   function hoursLabel(h) {
     if (!h || h <= 0) return '';
     const d = (h / 8).toFixed(1);
     return `≈ ${d} working day${parseFloat(d) === 1.0 ? '' : 's'} @ 8 hr/day`;
   }
   function recalc() {
-    const s = startEl ? startEl.value : new Date().toISOString().slice(0, 10);
+    // Baseline for the span: an explicit start field, else a fixed start date
+    // (e.g. the task's creation date), else today. Using a fixed start instead
+    // of "today" is what lets the estimate keep tracking the due date even for
+    // tasks whose due date is already in the past (overdue) — with a "today"
+    // baseline, today→due would be 0 business days and the estimate would
+    // freeze and never move when the user edits the due date.
+    const s = startEl ? startEl.value : (startDate || new Date().toISOString().slice(0, 10));
     const e = endEl ? endEl.value : null;
+    if (!e) return;                      // no due/end date entered → leave the estimate untouched
     const days = businessDays(s, e);
-    if (days > 0) {
-      hoursEl.value = days * 8;
-      if (daysEl) daysEl.textContent = hoursLabel(days * 8);
-    }
+    hoursEl.value = days * 8;            // always reflect the new span, even when it shrinks
+    if (daysEl) daysEl.textContent = hoursLabel(days * 8);
   }
   function refreshLabel() {
     if (daysEl) daysEl.textContent = hoursLabel(parseFloat(hoursEl.value));

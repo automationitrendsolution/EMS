@@ -170,21 +170,36 @@ def project_report(filters=None, user=None):
     if end_to:
         qs = qs.filter(end_date__lte=end_to)
 
-    columns = ["Project", "Status", "Priority", "Manager", "Total Tasks",
-               "Completed", "Progress %", "Est. Hrs", "Actual Hrs",
+    columns = ["Project", "Status", "Priority", "Manager", "Assignees", "Tasks",
+               "Total Tasks", "Completed", "Progress %", "Est. Hrs", "Actual Hrs",
                "Remaining Hrs", "Start", "End"]
     rows = []
     for p in qs.order_by("-created_at"):
-        tasks = Task.objects(project=p)
-        total = tasks.count()
-        done = tasks.filter(status="completed").count()
+        # Single pass over the project's tasks gathers the aggregate counts plus
+        # the per-project people ("Assignees") and work ("Tasks") the report now
+        # surfaces, keeping each name/title in first-seen order without repeats.
+        tasks = list(Task.objects(project=p))
+        total = len(tasks)
+        done = 0
+        actual_secs = 0
+        assignee_names = []
+        task_titles = []
+        for t in tasks:
+            if t.status == "completed":
+                done += 1
+            actual_secs += t.actual_seconds
+            task_titles.append(t.title)
+            name = t.assigned_to.full_name if t.assigned_to else "Unassigned"
+            if name not in assignee_names:
+                assignee_names.append(name)
         est_secs = int(round((p.estimated_hours or 0) * 3600))
-        actual_secs = sum(t.actual_seconds for t in tasks)
         rows.append([
             p.name,
             PROJECT_STATUS_LABELS.get(p.status, p.status),
             PRIORITY_LABELS.get(p.priority, p.priority),
             p.manager.full_name if p.manager else "",
+            ", ".join(assignee_names),
+            ", ".join(task_titles),
             total, done, round(done / total * 100) if total else 0,
             _hms_secs(est_secs), _hms_secs(actual_secs),
             _hms_secs(est_secs - actual_secs),

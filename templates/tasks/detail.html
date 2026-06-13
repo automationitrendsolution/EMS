@@ -459,6 +459,9 @@
   // Edit Task Modal — auto-calc estimate from due date (today → due date)
   wireEstimateFromDates({
     startEl: null,
+    // Anchor the estimate span to when the task was created, not "today", so the
+    // estimate keeps tracking the due date even after the task is overdue.
+    startDate: '{{ task.created_at|date:"Y-m-d" }}',
     endEl:   document.querySelector('#editTaskForm [name=due_date]'),
     hoursEl: document.getElementById('editTaskEstHours'),
     daysEl:  document.getElementById('editTaskEstDays'),
